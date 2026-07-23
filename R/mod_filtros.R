@@ -1,52 +1,69 @@
 # R/mod_filtros.R
-# Módulo para el control de filtros globales en el panel lateral (Sidebar)
+# Módulo para el control de filtros globales horizontales
 
-# 1. UI DEL MÓDULO
+# 1. UI DEL MÓDULO (Barra Horizontal)
 filtrosUI <- function(id) {
   ns <- NS(id)
   
-  tagList(
-    h4("Filtros Globales", style = "color: white; padding-left: 15px;"),
+  box(
+    title = tagList(icon("sliders"), " Panel de Filtros Globales"), 
+    width = 12, 
+    status = "primary", 
+    solidHeader = TRUE, 
+    collapsible = TRUE, # Permite colapsar los filtros para ganar espacio de mapa/gráficos
     
-    selectInput(
-      ns("filtro_ciudad"), 
-      "Ciudad:", 
-      choices = NULL, 
-      multiple = TRUE
+    fluidRow(
+      column(3,
+        selectInput(
+          ns("filtro_ciudad"), 
+          "Ciudad:", 
+          choices = NULL, 
+          multiple = TRUE
+        )
+      ),
+      column(3,
+        selectInput(
+          ns("filtro_tipo"), 
+          "Tipo de Inmueble:", 
+          choices = NULL, 
+          multiple = TRUE
+        )
+      ),
+      column(2,
+        sliderInput(
+          ns("filtro_precio"), 
+          "Precio (€):", 
+          min = 0, max = 10000, 
+          value = c(0, 10000), 
+          step = 50
+        )
+      ),
+      column(2,
+        sliderInput(
+          ns("filtro_superficie"), 
+          "Superficie (m²):", 
+          min = 0, max = 500, 
+          value = c(0, 500), 
+          step = 10
+        )
+      ),
+      column(2,
+        uiOutput(ns("ui_filtro_precio_m2"))
+      )
     ),
     
-    selectInput(
-      ns("filtro_tipo"), 
-      "Tipo de Inmueble:", 
-      choices = NULL, 
-      multiple = TRUE
-    ),
-    
-    sliderInput(
-      ns("filtro_precio"), 
-      "Rango de Precio (€):", 
-      min = 0, max = 10000, 
-      value = c(0, 10000), 
-      step = 50
-    ),
-    
-    sliderInput(
-      ns("filtro_superficie"), 
-      "Superficie (m²):", 
-      min = 0, max = 500, 
-      value = c(0, 500), 
-      step = 10
-    ),
-    
-    # Filtro dinámico de Ratio Máximo (€/m²)
-    uiOutput(ns("ui_filtro_precio_m2")),
-    
-    actionButton(
-      ns("btn_reset"), 
-      "Restablecer Filtros", 
-      icon = icon("undo"), 
-      class = "btn-warning btn-block",
-      style = "margin: 15px 15px 25px 15px; width: calc(100% - 30px);"
+    fluidRow(
+      column(12,
+        div(
+          style = "text-align: right; margin-top: -10px;",
+          actionButton(
+            ns("btn_reset"), 
+            " Restablecer Filtros", 
+            icon = icon("undo"), 
+            class = "btn-warning btn-sm"
+          )
+        )
+      )
     )
   )
 }
@@ -55,7 +72,7 @@ filtrosUI <- function(id) {
 filtrosServer <- function(id, datos_totales) {
   moduleServer(id, function(input, output, session) {
     
-    # Inicialización de opciones una sola vez cuando cargan los datos
+    # Inicialización de opciones
     observeEvent(datos_totales, {
       req(datos_totales)
       
@@ -101,12 +118,12 @@ filtrosServer <- function(id, datos_totales) {
       
       sliderInput(
         ns("filtro_precio_m2"), 
-        "Precio/m² Máximo (€/m²):", 
+        "Máx €/m²:", 
         min = 1, 
         max = max_pm2, 
         value = max_pm2, 
         step = 1,
-        post = " €/m²"
+        post = " €"
       )
     })
     
@@ -135,28 +152,21 @@ filtrosServer <- function(id, datos_totales) {
     datos_filtrados <- reactive({
       df <- datos_totales
       
-      # Si el usuario desselecciona todas las ciudades/tipos, devolver dataset vacío limpiamente
       if (is.null(input$filtro_ciudad) || is.null(input$filtro_tipo)) {
         return(df[0, ])
       }
       
-      # Filtro por Ciudad
       df <- df[df$ciudad %in% input$filtro_ciudad, ]
-      
-      # Filtro por Tipo
       df <- df[df$tipo %in% input$filtro_tipo, ]
       
-      # Filtro por Rango de Precio
       if (!is.null(input$filtro_precio)) {
         df <- df[df$precio >= input$filtro_precio[1] & df$precio <= input$filtro_precio[2], ]
       }
       
-      # Filtro por Rango de Superficie
       if (!is.null(input$filtro_superficie)) {
         df <- df[df$superficie >= input$filtro_superficie[1] & df$superficie <= input$filtro_superficie[2], ]
       }
       
-      # Filtro por Precio/m² Máximo
       if (!is.null(input$filtro_precio_m2)) {
         precio_m2_actual <- df$precio / df$superficie
         df <- df[precio_m2_actual <= input$filtro_precio_m2, ]

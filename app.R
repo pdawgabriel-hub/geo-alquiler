@@ -21,10 +21,11 @@ datos_totales <- readRDS("data/processed/alquileres.rds")
 # 1. INTERFAZ DE USUARIO (UI)
 ui <- dashboardPage(
   skin = "blue",
-  title = "GeoAlquiler",
+  title = "GeoAlquiler Pro",
   
-  dashboardHeader(title = "GeoAlquiler"),
+  dashboardHeader(title = "GeoAlquiler Pro"),
   
+  # Sidebar dedicado exclusivamente a la navegación entre pestañas
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
@@ -35,9 +36,7 @@ ui <- dashboardPage(
       menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
       menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
-    ),
-    hr(),
-    filtrosUI("filtros_sidebar")
+    )
   ),
   
   dashboardBody(
@@ -48,12 +47,18 @@ ui <- dashboardPage(
     tabItems(
       # 1. Panel Principal
       tabItem(tabName = "panel",
+        # Panel de Filtros Globales (Horizontal)
+        fluidRow(
+          filtrosUI("filtros_sidebar")
+        ),
+        # Tarjetas de Indicadores (KPIs)
         fluidRow(
           valueBoxOutput("kpi_precio_medio", width = 3),
           valueBoxOutput("kpi_superficie_media", width = 3),
           valueBoxOutput("kpi_precio_m2", width = 3),
           valueBoxOutput("kpi_total_inmuebles", width = 3)
         ),
+        # Mapa Principal
         fluidRow(
           mapaUI("mapa_principal")
         )
@@ -110,6 +115,7 @@ ui <- dashboardPage(
 # 2. SERVIDOR (Server)
 server <- function(input, output, session) {
   
+  # Lógica reactiva de filtros y mapa
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
   datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
   
