@@ -7,6 +7,7 @@ library(plotly)
 source("R/mod_filtros.R")
 source("R/mod_mapa.R")
 source("R/mod_graficos.R")
+source("R/mod_exportar.R") # Carga del nuevo módulo
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
@@ -40,9 +41,12 @@ ui <- dashboardPage(
         )
       ),
       
-      # PESTAÑA 2: Analítica Avanzada
+      # PESTAÑA 2: Analítica Avanzada + Exportación
       tabItem(tabName = "analitica",
-        graficosUI("grafico_principal")
+        graficosUI("grafico_principal"),
+        fluidRow(
+          exportarUI("exportar_datos") # Añadimos el bloque de descarga aquí
+        )
       ),
       
       # PESTAÑA 3: Información
@@ -72,7 +76,6 @@ server <- function(input, output, session) {
     valueBox(paste0(sup_med, " m²"), "Superficie Media", icon = icon("home"), color = "green")
   })
   
-  # NUEVO KPI: Precio / m² Medio
   output$kpi_precio_m2 <- renderValueBox({
     df <- datos_filtrados()
     precio_m2 <- ifelse(nrow(df) > 0, round(mean(df$precio / df$superficie), 1), 0)
@@ -84,8 +87,10 @@ server <- function(input, output, session) {
     valueBox(nrow(df), "Inmuebles Encontrados", icon = icon("building"), color = "blue")
   })
   
+  # Inicialización de Servidores Modulares
   mapaServer("mapa_principal", datos_filtrados)
   graficosServer("grafico_principal", datos_filtrados)
+  exportarServer("exportar_datos", datos_filtrados) # Conexión del server de exportación
 }
 
 shinyApp(ui = ui, server = server)
