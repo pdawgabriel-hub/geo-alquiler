@@ -13,21 +13,23 @@ source("R/mod_calculadora.R")
 source("R/mod_exportar.R")
 source("R/mod_comparador.R")
 source("R/mod_oportunidades.R")
+source("R/mod_estadistica.R")
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
 # 1. INTERFAZ DE USUARIO (UI)
 ui <- dashboardPage(
   skin = "blue",
-  dashboardHeader(title = "GeoAlquiler"),
+  dashboardHeader(title = "GeoAlquiler Pro"),
   
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
-      menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")), # 👈 Pestaña Oportunidades
+      menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
       menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-line")),
+      menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")), # 👈 Pestaña Estadística
       menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     ),
@@ -59,7 +61,7 @@ ui <- dashboardPage(
         comparadorUI("comp_principal")
       ),
       
-      # 3. Oportunidades Inmobiliarias (NUEVA PESTAÑA)
+      # 3. Oportunidades Inmobiliarias
       tabItem(tabName = "oportunidades",
         oportunidadesUI("oportunidades_principal")
       ),
@@ -77,12 +79,17 @@ ui <- dashboardPage(
         )
       ),
       
-      # 6. Calculadora Inmobiliaria
+      # 6. Estadística Avanzada (NUEVA PESTAÑA)
+      tabItem(tabName = "estadistica",
+        estadisticaUI("estadistica_principal")
+      ),
+      
+      # 7. Calculadora Inmobiliaria
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
       
-      # 7. Información
+      # 8. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -134,6 +141,7 @@ server <- function(input, output, session) {
   exportarServer("exportar_datos", datos_visibles)
   comparadorServer("comp_principal", datos_totales)
   oportunidadesServer("oportunidades_principal", datos_visibles)
+  estadisticaServer("estadistica_principal", datos_visibles)
 }
 
 shinyApp(ui = ui, server = server)
