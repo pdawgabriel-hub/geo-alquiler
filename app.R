@@ -1,3 +1,4 @@
+# app.R
 library(shiny)
 library(shinydashboard)
 library(leaflet)
@@ -20,7 +21,9 @@ datos_totales <- readRDS("data/processed/alquileres.rds")
 # 1. INTERFAZ DE USUARIO (UI)
 ui <- dashboardPage(
   skin = "blue",
-  dashboardHeader(title = "GeoAlquiler Pro"),
+  title = "GeoAlquiler",
+  
+  dashboardHeader(title = "GeoAlquiler"),
   
   dashboardSidebar(
     sidebarMenu(
@@ -29,7 +32,7 @@ ui <- dashboardPage(
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
       menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-line")),
-      menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")), # 👈 Pestaña Estadística
+      menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
       menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     ),
@@ -79,7 +82,7 @@ ui <- dashboardPage(
         )
       ),
       
-      # 6. Estadística Avanzada (NUEVA PESTAÑA)
+      # 6. Estadística Avanzada
       tabItem(tabName = "estadistica",
         estadisticaUI("estadistica_principal")
       ),
