@@ -11,10 +11,11 @@ source("R/mod_graficos.R")
 source("R/mod_tabla.R")
 source("R/mod_calculadora.R")
 source("R/mod_exportar.R")
+source("R/mod_reporte.R")
 source("R/mod_comparador.R")
 source("R/mod_oportunidades.R")
 source("R/mod_estadistica.R")
-source("R/mod_recomendador.R") # 👈 Nuevo módulo
+source("R/mod_recomendador.R")
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
@@ -30,11 +31,12 @@ ui <- dashboardPage(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
-      menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")), # 👈 Nueva opción menú
+      menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")),
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
       menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-line")),
       menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
       menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
+      menuItem("Informe Ejecutivo", tabName = "reporte", icon = icon("file-alt")),
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     )
   ),
@@ -71,7 +73,7 @@ ui <- dashboardPage(
         oportunidadesUI("oportunidades_principal")
       ),
       
-      # 4. Recomendador KNN (NUEVA PESTAÑA)
+      # 4. Recomendador KNN
       tabItem(tabName = "recomendador",
         recomendadorUI("recomendador_principal")
       ),
@@ -81,7 +83,7 @@ ui <- dashboardPage(
         tablaUI("tabla_principal")
       ),
       
-      # 6. Analítica Avanzada + Exportación
+      # 6. Analítica Avanzada + Exportación CSV
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal"),
         fluidRow(
@@ -98,8 +100,13 @@ ui <- dashboardPage(
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
+
+      # 9. Informe Ejecutivo HTML/PDF (NUEVA VISTA)
+      tabItem(tabName = "reporte",
+        reporteUI("reporte_principal")
+      ),
       
-      # 9. Información
+      # 10. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -150,10 +157,11 @@ server <- function(input, output, session) {
   graficosServer("grafico_principal", datos_visibles)
   calculadoraServer("calc_principal", datos_visibles)
   exportarServer("exportar_datos", datos_visibles)
+  reporteServer("reporte_principal", datos_visibles)
   comparadorServer("comp_principal", datos_totales)
   oportunidadesServer("oportunidades_principal", datos_visibles)
   estadisticaServer("estadistica_principal", datos_visibles)
-  recomendadorServer("recomendador_principal", datos_filtrados_sidebar) # 👈 Servidor módulo
+  recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
 }
 
 shinyApp(ui = ui, server = server)
