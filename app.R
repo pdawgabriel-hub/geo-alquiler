@@ -1,4 +1,3 @@
-# app.R
 library(shiny)
 library(shinydashboard)
 library(leaflet)
@@ -15,22 +14,23 @@ source("R/mod_exportar.R")
 source("R/mod_comparador.R")
 source("R/mod_oportunidades.R")
 source("R/mod_estadistica.R")
+source("R/mod_recomendador.R") # 👈 Nuevo módulo
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
 # 1. INTERFAZ DE USUARIO (UI)
 ui <- dashboardPage(
   skin = "blue",
-  title = "GeoAlquiler Pro",
+  title = "GeoAlquiler",
   
-  dashboardHeader(title = "GeoAlquiler Pro"),
+  dashboardHeader(title = "GeoAlquiler"),
   
-  # Sidebar dedicado exclusivamente a la navegación entre pestañas
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
+      menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")), # 👈 Nueva opción menú
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
       menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-line")),
       menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
@@ -47,18 +47,15 @@ ui <- dashboardPage(
     tabItems(
       # 1. Panel Principal
       tabItem(tabName = "panel",
-        # Panel de Filtros Globales (Horizontal)
         fluidRow(
           filtrosUI("filtros_sidebar")
         ),
-        # Tarjetas de Indicadores (KPIs)
         fluidRow(
           valueBoxOutput("kpi_precio_medio", width = 3),
           valueBoxOutput("kpi_superficie_media", width = 3),
           valueBoxOutput("kpi_precio_m2", width = 3),
           valueBoxOutput("kpi_total_inmuebles", width = 3)
         ),
-        # Mapa Principal
         fluidRow(
           mapaUI("mapa_principal")
         )
@@ -74,12 +71,17 @@ ui <- dashboardPage(
         oportunidadesUI("oportunidades_principal")
       ),
       
-      # 4. Explorador de Datos (DT)
+      # 4. Recomendador KNN (NUEVA PESTAÑA)
+      tabItem(tabName = "recomendador",
+        recomendadorUI("recomendador_principal")
+      ),
+      
+      # 5. Explorador de Datos (DT)
       tabItem(tabName = "tabla",
         tablaUI("tabla_principal")
       ),
       
-      # 5. Analítica Avanzada + Exportación
+      # 6. Analítica Avanzada + Exportación
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal"),
         fluidRow(
@@ -87,17 +89,17 @@ ui <- dashboardPage(
         )
       ),
       
-      # 6. Estadística Avanzada
+      # 7. Estadística Avanzada
       tabItem(tabName = "estadistica",
         estadisticaUI("estadistica_principal")
       ),
       
-      # 7. Calculadora Inmobiliaria
+      # 8. Calculadora Inmobiliaria
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
       
-      # 8. Información
+      # 9. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -151,6 +153,7 @@ server <- function(input, output, session) {
   comparadorServer("comp_principal", datos_totales)
   oportunidadesServer("oportunidades_principal", datos_visibles)
   estadisticaServer("estadistica_principal", datos_visibles)
+  recomendadorServer("recomendador_principal", datos_filtrados_sidebar) # 👈 Servidor módulo
 }
 
 shinyApp(ui = ui, server = server)
