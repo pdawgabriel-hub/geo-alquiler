@@ -1,14 +1,14 @@
-# Módulo de mapa con captura de encuadre visible (bounds)
+# Módulo de mapa interactivo con captura de encuadre (bounds) y capa de calor (Heatmap)
 
 mapaUI <- function(id) {
   ns <- NS(id)
   
   box(
-    title = "Distribución Geográfica y Capa de Calor", 
+    title = tagList(icon("map-marked-alt"), " Distribución Geográfica y Capa de Calor"), 
     width = 12, 
     solidHeader = TRUE, 
     status = "primary",
-    leafletOutput(ns("mapa_alquiler"), height = 480)
+    leafletOutput(ns("mapa_alquiler"), height = 520)
   )
 }
 
@@ -18,7 +18,8 @@ mapaServer <- function(id, datos_reactivos) {
     output$mapa_alquiler <- renderLeaflet({
       df <- datos_reactivos()
       
-      if (nrow(df) == 0) {
+      # Si no hay datos, mostramos un mapa neutro centrado en España/Europa
+      if (is.null(df) || nrow(df) == 0) {
         return(
           leaflet() %>% 
             addTiles() %>% 
@@ -26,16 +27,20 @@ mapaServer <- function(id, datos_reactivos) {
         )
       }
       
+      # Limpieza de registros sin coordenadas para no romper Leaflet / Heatmap
+      df <- df[!is.na(df$lat) & !is.na(df$lng) & !is.na(df$precio), ]
+      
       paleta_colores <- colorNumeric(
         palette = c("#2ecc71", "#f39c12", "#e74c3c"),
         domain = df$precio
       )
       
-      leaflet(df) %>%
+      mapa <- leaflet(df) %>%
         addProviderTiles(providers$CartoDB.Positron, group = "Mapa Claro") %>%
         addProviderTiles(providers$CartoDB.DarkMatter, group = "Mapa Oscuro") %>%
         addTiles(group = "OpenStreetMap") %>%
         setView(lng = -3.70379, lat = 40.416775, zoom = 5) %>%
+        # Capa 1: Puntos agrupados (Clusters)
         addCircleMarkers(
           lng = ~lng, lat = ~lat,
           radius = 7,
@@ -56,6 +61,13 @@ mapaServer <- function(id, datos_reactivos) {
             "</div>"
           )
         ) %>%
+        # Capa 2: Mapa de Calor (Heatmap)
+        addHeatmap(
+          lng = ~lng, lat = ~lat,
+          intensity = ~precio,
+          blur = 20, max = max(df$precio, na.rm = TRUE), radius = 15,
+          group = "Mapa de Calor (Densidad)"
+        ) %>%
         addLegend(
           position = "bottomright",
           pal = paleta_colores,
@@ -63,11 +75,16 @@ mapaServer <- function(id, datos_reactivos) {
           title = "Precio (€)",
           opacity = 0.9
         ) %>%
+        # Selector de Capas para activar/desactivar Puntos o Mapa de Calor
         addLayersControl(
           baseGroups = c("Mapa Claro", "Mapa Oscuro", "OpenStreetMap"),
-          overlayGroups = c("Inmuebles (Puntos)"),
+          overlayGroups = c("Inmuebles (Puntos)", "Mapa de Calor (Densidad)"),
           options = layersControlOptions(collapsed = FALSE)
-        )
+        ) %>%
+        # Ocultamos por defecto la capa de calor para no saturar la vista inicial
+        hideGroup("Mapa de Calor (Densidad)")
+      
+      mapa
     })
     
     # Devolvemos los datos delimitados espacialmente por el recuadro del mapa
@@ -76,7 +93,7 @@ mapaServer <- function(id, datos_reactivos) {
       bounds <- input$mapa_alquiler_bounds
       
       # Si el usuario aún no ha movido o cargado los límites, mostramos todos los datos
-      if (is.null(bounds)) return(df)
+      if (is.null(bounds) || is.null(df) || nrow(df) == 0) return(df)
       
       # Filtramos los inmuebles cuyas lat/lng están dentro de la ventana visible
       df[df$lat >= bounds$south & df$lat <= bounds$north &
