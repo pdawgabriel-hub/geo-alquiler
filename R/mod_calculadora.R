@@ -1,89 +1,157 @@
-# Módulo para simular estimaciones financieras de inversión inmobiliaria
+# Módulo de Calculadora de Inversión y Análisis de Sensibilidad "What-If" para GeoAlquiler
 
 # 1. UI DEL MÓDULO
 calculadoraUI <- function(id) {
   ns <- NS(id)
   
-  fluidRow(
-    box(
-      title = "Parámetros de Inversión", 
-      width = 5, 
-      status = "warning", 
-      solidHeader = TRUE,
-      numericInput(ns("precio_compra"), "Precio estimado de compra (€):", value = 180000, step = 5000),
-      numericInput(ns("gastos_compra"), "Gastos e impuestos de compra (%):", value = 10, min = 0, max = 20),
-      numericInput(ns("reforma"), "Presupuesto de reforma / adecuación (€):", value = 15000, step = 1000),
-      numericInput(ns("gastos_anuales"), "Gastos anuales estimados (IBI, comunidad, seguro) (€):", value = 1200, step = 100)
+  tagList(
+    fluidRow(
+      box(
+        title = tagList(icon("sliders-h"), " Parámetros de la Inversión"),
+        width = 4, status = "primary", solidHeader = TRUE,
+        numericInput(ns("precio_compra"), "Precio de Compra (€):", value = 150000, step = 5000),
+        numericInput(ns("gastos_compra"), "Gastos e Impuestos Compra (%):", value = 10, min = 0, max = 20),
+        numericInput(ns("reforma"), "Reforma / Puesta a punto (€):", value = 10000, step = 1000),
+        numericInput(ns("alquiler_mensual"), "Alquiler Estimado (€/mes):", value = 850, step = 50),
+        hr(),
+        h5(strong("Estructura de Gastos Anuales")),
+        numericInput(ns("ibi_comunidad"), "IBI + Comunidad anual (€):", value = 1200, step = 100),
+        numericInput(ns("seguros"), "Seguros anuales (€):", value = 350, step = 50)
+      ),
+      
+      box(
+        title = tagList(icon("chart-line"), " Simulación de Escenarios \"What-If\""),
+        width = 8, status = "warning", solidHeader = TRUE,
+        p("Ajusta los factores de riesgo para evaluar la resistencia de la inversión:"),
+        fluidRow(
+          column(6,
+            sliderInput(
+              ns("meses_ocupado"),
+              "Meses alquilado al año (Ocupación):",
+              min = 6, max = 12, value = 11, step = 0.5
+            )
+          ),
+          column(6,
+            sliderInput(
+              ns("pct_mantenimiento"),
+              "Gasto imprevisto / Mantenimiento (% alquiler):",
+              min = 0, max = 25, value = 5, step = 1, post = "%"
+            )
+          )
+        ),
+        hr(),
+        fluidRow(
+          valueBoxOutput(ns("vbox_inversion_total"), width = 4),
+          valueBoxOutput(ns("vbox_rent_bruta"), width = 4),
+          valueBoxOutput(ns("vbox_rent_neta"), width = 4)
+        )
+      )
     ),
-    box(
-      title = "Métricas y Retorno Estimado", 
-      width = 7, 
-      status = "success", 
-      solidHeader = TRUE,
-      valueBoxOutput(ns("kpi_inversion_total"), width = 6),
-      valueBoxOutput(ns("kpi_alquiler_estimado"), width = 6),
-      valueBoxOutput(ns("kpi_rentabilidad_bruta"), width = 6),
-      valueBoxOutput(ns("kpi_rentabilidad_neta"), width = 6)
+    
+    fluidRow(
+      box(
+        title = tagList(icon("balance-scale"), " Comparativa de Escenarios de Ocupación vs Rentabilidad"),
+        width = 12, status = "info", solidHeader = TRUE,
+        DTOutput(ns("tabla_escenarios"))
+      )
     )
   )
 }
 
-# 2. SERVER DEL MÓDULO
-calculadoraServer <- function(id, datos_reactivos) {
+# 2. SERVER DEL MÓDULO (Acepta opcionalmente el argumento 'datos' de app.R sin dar error)
+calculadoraServer <- function(id, datos = NULL) {
   moduleServer(id, function(input, output, session) {
     
-    # 1. Inversión total = Compra + Gastos% + Reforma
-    inversion_total <- reactive({
-      req(input$precio_compra)
-      compra <- input$precio_compra
-      gastos <- compra * (input$gastos_compra / 100)
-      reforma <- input$reforma
-      return(compra + gastos + reforma)
-    })
-    
-    # 2. Alquiler mensual estimado (Usa la media de los datos filtrados en pantalla)
-    alquiler_estimado <- reactive({
-      df <- datos_reactivos()
-      if (nrow(df) == 0) return(0)
-      round(mean(df$precio))
-    })
-    
-    output$kpi_inversion_total <- renderValueBox({
-      valueBox(
-        paste0(format(inversion_total(), big.mark = "."), " €"),
-        "Inversión Total Requerida", icon = icon("wallet"), color = "navy"
+    # Cálculos dinámicos de la inversión base y escenario actual
+    metricas <- reactive({
+      req(input$precio_compra, input$alquiler_mensual)
+      
+      inversion_total <- input$precio_compra * (1 + input$gastos_compra / 100) + input$reforma
+      
+      # Ingresos brutos según meses de ocupación
+      ingresos_brutos_anuales <- input$alquiler_mensual * input$meses_ocupado
+      
+      # Gastos operativos
+      mantenimiento <- ingresos_brutos_anuales * (input$pct_mantenimiento / 100)
+      gastos_fijos <- input$ibi_comunidad + input$seguros
+      gastos_totales_anuales <- gastos_fijos + mantenimiento
+      
+      ingresos_netos_anuales <- ingresos_brutos_anuales - gastos_totales_anuales
+      
+      rent_bruta <- ( (input$alquiler_mensual * 12) / inversion_total ) * 100
+      rent_neta <- ( ingresos_netos_anuales / inversion_total ) * 100
+      
+      list(
+        inversion_total = round(inversion_total, 2),
+        ingresos_brutos = round(ingresos_brutos_anuales, 2),
+        ingresos_netos = round(ingresos_netos_anuales, 2),
+        rent_bruta = round(rent_bruta, 2),
+        rent_neta = round(rent_neta, 2)
       )
     })
     
-    output$kpi_alquiler_estimado <- renderValueBox({
+    # Renderizado de ValueBoxes
+    output$vbox_inversion_total <- renderValueBox({
+      m <- metricas()
       valueBox(
-        paste0(alquiler_estimado(), " €/mes"),
-        "Alquiler Estimado Zona", icon = icon("key"), color = "teal"
+        paste0(format(m$inversion_total, big.mark = "."), " €"),
+        "Inversión Total Inicial",
+        icon = icon("coins"),
+        color = "blue"
       )
     })
     
-    output$kpi_rentabilidad_bruta <- renderValueBox({
-      inv <- inversion_total()
-      alq_anual <- alquiler_estimado() * 12
-      rent_bruta <- ifelse(inv > 0, round((alq_anual / inv) * 100, 2), 0)
+    output$vbox_rent_bruta <- renderValueBox({
+      m <- metricas()
+      valueBox(
+        paste0(m$rent_bruta, " %"),
+        "Rentabilidad Bruta (100% Ocupación)",
+        icon = icon("percentage"),
+        color = "purple"
+      )
+    })
+    
+    output$vbox_rent_neta <- renderValueBox({
+      m <- metricas()
+      col_color <- if (m$rent_neta >= 5) "green" else if (m$rent_neta >= 3) "yellow" else "red"
       
       valueBox(
-        paste0(rent_bruta, " %"),
-        "Rentabilidad Bruta Anual", icon = icon("chart-pie"), color = "green"
+        paste0(m$rent_neta, " %"),
+        "Rentabilidad Neta (Escenario Actual)",
+        icon = icon("chart-line"),
+        color = col_color
       )
     })
     
-    output$kpi_rentabilidad_neta <- renderValueBox({
-      inv <- inversion_total()
-      alq_anual <- alquiler_estimado() * 12
-      ingreso_neto <- alq_anual - input$gastos_anuales
-      rent_neta <- ifelse(inv > 0, round((ingreso_neto / inv) * 100, 2), 0)
+    # Tabla de análisis de sensibilidad (Escenarios de 8 a 12 meses alquilado)
+    output$tabla_escenarios <- renderDataTable({
+      m <- metricas()
+      req(input$precio_compra, input$alquiler_mensual)
       
-      valueBox(
-        paste0(rent_neta, " %"),
-        "Rentabilidad Neta Estimada", icon = icon("coins"), color = "olive"
+      inv_tot <- m$inversion_total
+      gastos_fijos <- input$ibi_comunidad + input$seguros
+      
+      # Generar matriz de sensibilidad con diferentes meses de ocupación
+      meses_vec <- c(12, 11, 10, 9, 8)
+      
+      escenarios <- data.frame(
+        Ocupacion = paste0(meses_vec, " meses (", round((meses_vec/12)*100), "%)"),
+        IngresosBrutos = meses_vec * input$alquiler_mensual,
+        GastosOperativos = round((meses_vec * input$alquiler_mensual * (input$pct_mantenimiento / 100)) + gastos_fijos, 2)
+      )
+      
+      escenarios$CashFlowAnual <- escenarios$IngresosBrutos - escenarios$GastosOperativos
+      escenarios$RentabilidadNeta <- paste0(round((escenarios$CashFlowAnual / inv_tot) * 100, 2), " %")
+      escenarios$CashFlowMensual <- paste0(round(escenarios$CashFlowAnual / 12, 2), " €")
+      escenarios$IngresosBrutos <- paste0(escenarios$IngresosBrutos, " €")
+      escenarios$CashFlowAnual <- paste0(escenarios$CashFlowAnual, " €")
+      
+      datatable(
+        escenarios,
+        colnames = c("Escenario Ocupación", "Ingresos Brutos/Año", "Gastos Totales/Año", "Cash Flow Anual", "Rentabilidad Neta", "Cash Flow Medio/Mes"),
+        options = list(dom = 't', ordering = FALSE),
+        rownames = FALSE
       )
     })
-    
   })
 }
