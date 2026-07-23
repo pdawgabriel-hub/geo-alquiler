@@ -22,25 +22,25 @@ ui <- dashboardPage(
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     ),
     hr(),
-    # Módulo de Filtros
     filtrosUI("filtros_sidebar")
   ),
   
   dashboardBody(
     tabItems(
-      # PESTAÑA 1: Panel Principal (Mapa y KPIs)
+      # PESTAÑA 1: Panel Principal
       tabItem(tabName = "panel",
         fluidRow(
-          valueBoxOutput("kpi_precio_medio", width = 4),
-          valueBoxOutput("kpi_superficie_media", width = 4),
-          valueBoxOutput("kpi_total_inmuebles", width = 4)
+          valueBoxOutput("kpi_precio_medio", width = 3),
+          valueBoxOutput("kpi_superficie_media", width = 3),
+          valueBoxOutput("kpi_precio_m2", width = 3),
+          valueBoxOutput("kpi_total_inmuebles", width = 3)
         ),
         fluidRow(
           mapaUI("mapa_principal")
         )
       ),
       
-      # PESTAÑA 2: Analítica Avanzada (Módulo de Gráficos completo)
+      # PESTAÑA 2: Analítica Avanzada
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal")
       ),
@@ -57,7 +57,6 @@ ui <- dashboardPage(
 # 2. LÓGICA DEL SERVIDOR (Server / Backend)
 server <- function(input, output, session) {
   
-  # Filtros globales
   datos_filtrados <- filtrosServer("filtros_sidebar", datos_totales)
   
   # KPIs de la portada
@@ -73,12 +72,18 @@ server <- function(input, output, session) {
     valueBox(paste0(sup_med, " m²"), "Superficie Media", icon = icon("home"), color = "green")
   })
   
+  # NUEVO KPI: Precio / m² Medio
+  output$kpi_precio_m2 <- renderValueBox({
+    df <- datos_filtrados()
+    precio_m2 <- ifelse(nrow(df) > 0, round(mean(df$precio / df$superficie), 1), 0)
+    valueBox(paste0(precio_m2, " €/m²"), "Precio/m² Medio", icon = icon("calculator"), color = "orange")
+  })
+  
   output$kpi_total_inmuebles <- renderValueBox({
     df <- datos_filtrados()
     valueBox(nrow(df), "Inmuebles Encontrados", icon = icon("building"), color = "blue")
   })
   
-  # Inicialización de Servidores Modulares
   mapaServer("mapa_principal", datos_filtrados)
   graficosServer("grafico_principal", datos_filtrados)
 }
