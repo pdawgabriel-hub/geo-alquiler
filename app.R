@@ -4,7 +4,7 @@ library(leaflet)
 library(plotly)
 
 # 0. CARGA DE MÓDULOS Y DATOS
-# Al poner los scripts en la carpeta R/, los cargamos limpiamente con source:
+source("R/mod_filtros.R")
 source("R/mod_mapa.R")
 source("R/mod_graficos.R")
 
@@ -21,10 +21,8 @@ ui <- dashboardPage(
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     ),
     hr(),
-    sliderInput("filtro_precio", "Rango de Precio (€):", 
-                min = 500, max = 2800, value = c(600, 2000), step = 50),
-    selectInput("filtro_tipo", "Tipo de Propiedad:", 
-                choices = c("Todos", "Piso", "Casa", "Ático", "Estudio"))
+    # LLAMADA AL MÓDULO DE FILTROS EN EL SIDEBAR
+    filtrosUI("filtros_sidebar")
   ),
   
   dashboardBody(
@@ -36,13 +34,12 @@ ui <- dashboardPage(
           valueBoxOutput("kpi_total_inmuebles", width = 4)
         ),
         fluidRow(
-          # LLAMADA A LA UI DE LOS MÓDULOS
           mapaUI("mapa_principal"),
           graficosUI("grafico_principal")
         )
       ),
       tabItem(tabName = "informacion",
-        h2("Proyecto para portfolio"),
+        h2("Sobre este proyecto"),
         p("Dashboard interactivo desarrollado en R Shiny para visualizar el mercado del alquiler.")
       )
     )
@@ -52,17 +49,10 @@ ui <- dashboardPage(
 # 2. LÓGICA DEL SERVIDOR (Server / Backend)
 server <- function(input, output, session) {
   
-  # Filtro reactivo principal
-  datos_filtrados <- reactive({
-    tabla <- datos_totales
-    tabla <- tabla[tabla$precio >= input$filtro_precio[1] & tabla$precio <= input$filtro_precio[2], ]
-    if (input$filtro_tipo != "Todos") {
-      tabla <- tabla[tabla$tipo == input$filtro_tipo, ]
-    }
-    return(tabla)
-  })
+  # 1. Conectamos el módulo de Filtros y recibimos la tabla reactiva
+  datos_filtrados <- filtrosServer("filtros_sidebar", datos_totales)
   
-  # KPIs simples del Dashboard
+  # KPIs dinámicos principales
   output$kpi_precio_medio <- renderValueBox({
     df <- datos_filtrados()
     precio_med <- ifelse(nrow(df) > 0, round(mean(df$precio)), 0)
@@ -80,8 +70,7 @@ server <- function(input, output, session) {
     valueBox(nrow(df), "Inmuebles Encontrados", icon = icon("building"), color = "blue")
   })
   
-  # LLAMADA AL SERVER DE LOS MÓDULOS
-  # Les pasamos la misma tabla reactiva 'datos_filtrados'
+  # 2. Pasamos la tabla reactiva a los módulos de visualización
   mapaServer("mapa_principal", datos_filtrados)
   graficosServer("grafico_principal", datos_filtrados)
 }
