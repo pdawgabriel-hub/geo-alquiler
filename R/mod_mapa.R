@@ -1,6 +1,5 @@
-# Módulo del mapa interactivo con marcadores, clustering y mapa de calor (Heatmap)
+# Módulo de mapa con captura de encuadre visible (bounds)
 
-# 1. UI DEL MÓDULO
 mapaUI <- function(id) {
   ns <- NS(id)
   
@@ -13,7 +12,6 @@ mapaUI <- function(id) {
   )
 }
 
-# 2. SERVER DEL MÓDULO
 mapaServer <- function(id, datos_reactivos) {
   moduleServer(id, function(input, output, session) {
     
@@ -37,10 +35,7 @@ mapaServer <- function(id, datos_reactivos) {
         addProviderTiles(providers$CartoDB.Positron, group = "Mapa Claro") %>%
         addProviderTiles(providers$CartoDB.DarkMatter, group = "Mapa Oscuro") %>%
         addTiles(group = "OpenStreetMap") %>%
-        
         setView(lng = -3.70379, lat = 40.416775, zoom = 5) %>%
-        
-        # CAPA 1: Marcadores individuales con clustering
         addCircleMarkers(
           lng = ~lng, lat = ~lat,
           radius = 7,
@@ -61,8 +56,6 @@ mapaServer <- function(id, datos_reactivos) {
             "</div>"
           )
         ) %>%
-        
-        # LEYENDA
         addLegend(
           position = "bottomright",
           pal = paleta_colores,
@@ -70,8 +63,6 @@ mapaServer <- function(id, datos_reactivos) {
           title = "Precio (€)",
           opacity = 0.9
         ) %>%
-        
-        # CONTROLLER DE CAPAS (Base y Calidad)
         addLayersControl(
           baseGroups = c("Mapa Claro", "Mapa Oscuro", "OpenStreetMap"),
           overlayGroups = c("Inmuebles (Puntos)"),
@@ -79,5 +70,19 @@ mapaServer <- function(id, datos_reactivos) {
         )
     })
     
+    # Devolvemos los datos delimitados espacialmente por el recuadro del mapa
+    datos_en_pantalla <- reactive({
+      df <- datos_reactivos()
+      bounds <- input$mapa_alquiler_bounds
+      
+      # Si el usuario aún no ha movido o cargado los límites, mostramos todos los datos
+      if (is.null(bounds)) return(df)
+      
+      # Filtramos los inmuebles cuyas lat/lng están dentro de la ventana visible
+      df[df$lat >= bounds$south & df$lat <= bounds$north &
+         df$lng >= bounds$west & df$lng <= bounds$east, ]
+    })
+    
+    return(datos_en_pantalla)
   })
 }
