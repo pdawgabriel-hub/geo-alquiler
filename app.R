@@ -17,6 +17,7 @@ source("R/mod_comparador.R")
 source("R/mod_oportunidades.R")
 source("R/mod_estadistica.R")
 source("R/mod_recomendador.R")
+source("R/mod_prediccion.R") # <- Módulo de Predicción ML
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
@@ -30,6 +31,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
+      menuItem("Predicción ML", tabName = "prediccion", icon = icon("chart-line")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
       menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")),
@@ -64,27 +66,32 @@ ui <- dashboardPage(
         )
       ),
       
-      # 2. Comparador A/B
+      # 2. Predicción ML (NUEVA PESTAÑA)
+      tabItem(tabName = "prediccion",
+        prediccionUI("prediccion_principal")
+      ),
+      
+      # 3. Comparador A/B
       tabItem(tabName = "comparador",
         comparadorUI("comp_principal")
       ),
       
-      # 3. Oportunidades Inmobiliarias
+      # 4. Oportunidades Inmobiliarias
       tabItem(tabName = "oportunidades",
         oportunidadesUI("oportunidades_principal")
       ),
       
-      # 4. Recomendador KNN
+      # 5. Recomendador KNN
       tabItem(tabName = "recomendador",
         recomendadorUI("recomendador_principal")
       ),
       
-      # 5. Explorador de Datos (DT)
+      # 6. Explorador de Datos (DT)
       tabItem(tabName = "tabla",
         tablaUI("tabla_principal")
       ),
       
-      # 6. Analítica Avanzada + Exportación CSV
+      # 7. Analítica Avanzada + Exportación CSV
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal"),
         fluidRow(
@@ -92,22 +99,22 @@ ui <- dashboardPage(
         )
       ),
       
-      # 7. Estadística Avanzada
+      # 8. Estadística Avanzada
       tabItem(tabName = "estadistica",
         estadisticaUI("estadistica_principal")
       ),
       
-      # 8. Calculadora Inmobiliaria
+      # 9. Calculadora Inmobiliaria
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
 
-      # 9. Informe Ejecutivo HTML/PDF (NUEVA VISTA)
+      # 10. Informe Ejecutivo HTML/PDF
       tabItem(tabName = "reporte",
         reporteUI("reporte_principal")
       ),
       
-      # 10. Información
+      # 11. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -129,28 +136,29 @@ server <- function(input, output, session) {
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
   datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
   
-  # KPIs principales
+  # KPIs principales (Protegidos contra NAs y vacíos)
   output$kpi_precio_medio <- renderValueBox({
     df <- datos_visibles()
-    precio_med <- ifelse(nrow(df) > 0, round(mean(df$precio)), 0)
+    precio_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE)) else 0
     valueBox(paste0(precio_med, " €"), "Precio Medio", icon = icon("eur"), color = "purple")
   })
   
   output$kpi_superficie_media <- renderValueBox({
     df <- datos_visibles()
-    sup_med <- ifelse(nrow(df) > 0, round(mean(df$superficie)), 0)
+    sup_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$superficie, na.rm = TRUE)) else 0
     valueBox(paste0(sup_med, " m²"), "Superficie Media", icon = icon("home"), color = "green")
   })
   
   output$kpi_precio_m2 <- renderValueBox({
     df <- datos_visibles()
-    precio_m2 <- ifelse(nrow(df) > 0, round(mean(df$precio / df$superficie), 1), 0)
+    precio_m2 <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio / df$superficie, na.rm = TRUE), 1) else 0
     valueBox(paste0(precio_m2, " €/m²"), "Precio/m² Medio", icon = icon("calculator"), color = "orange")
   })
   
   output$kpi_total_inmuebles <- renderValueBox({
     df <- datos_visibles()
-    valueBox(nrow(df), "Inmuebles Visibles", icon = icon("building"), color = "blue")
+    tot <- if (!is.null(df)) nrow(df) else 0
+    valueBox(tot, "Inmuebles Visibles", icon = icon("building"), color = "blue")
   })
   
   # Servidores Modulares
@@ -163,6 +171,7 @@ server <- function(input, output, session) {
   oportunidadesServer("oportunidades_principal", datos_visibles)
   estadisticaServer("estadistica_principal", datos_visibles)
   recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
+  prediccionServer("prediccion_principal", datos_totales) # <- Instancia Servidor ML
 }
 
 shinyApp(ui = ui, server = server)
