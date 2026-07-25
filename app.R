@@ -17,7 +17,8 @@ source("R/mod_comparador.R")
 source("R/mod_oportunidades.R")
 source("R/mod_estadistica.R")
 source("R/mod_recomendador.R")
-source("R/mod_prediccion.R") # <- Módulo de Predicción ML
+source("R/mod_prediccion.R")
+source("R/mod_barrios.R") # <- Nuevo Módulo Zonal/Barrios
 
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
@@ -31,6 +32,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
+      menuItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")), # <- Opción del menú
       menuItem("Predicción ML", tabName = "prediccion", icon = icon("chart-line")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
@@ -66,32 +68,37 @@ ui <- dashboardPage(
         )
       ),
       
-      # 2. Predicción ML (NUEVA PESTAÑA)
+      # 2. Análisis por Barrios (NUEVA PESTAÑA)
+      tabItem(tabName = "barrios",
+        barriosUI("barrios_principal")
+      ),
+      
+      # 3. Predicción ML
       tabItem(tabName = "prediccion",
         prediccionUI("prediccion_principal")
       ),
       
-      # 3. Comparador A/B
+      # 4. Comparador A/B
       tabItem(tabName = "comparador",
         comparadorUI("comp_principal")
       ),
       
-      # 4. Oportunidades Inmobiliarias
+      # 5. Oportunidades Inmobiliarias
       tabItem(tabName = "oportunidades",
         oportunidadesUI("oportunidades_principal")
       ),
       
-      # 5. Recomendador KNN
+      # 6. Recomendador KNN
       tabItem(tabName = "recomendador",
         recomendadorUI("recomendador_principal")
       ),
       
-      # 6. Explorador de Datos (DT)
+      # 7. Explorador de Datos (DT)
       tabItem(tabName = "tabla",
         tablaUI("tabla_principal")
       ),
       
-      # 7. Analítica Avanzada + Exportación CSV
+      # 8. Analítica Avanzada + Exportación CSV
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal"),
         fluidRow(
@@ -99,22 +106,22 @@ ui <- dashboardPage(
         )
       ),
       
-      # 8. Estadística Avanzada
+      # 9. Estadística Avanzada
       tabItem(tabName = "estadistica",
         estadisticaUI("estadistica_principal")
       ),
       
-      # 9. Calculadora Inmobiliaria
+      # 10. Calculadora Inmobiliaria
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
 
-      # 10. Informe Ejecutivo HTML/PDF
+      # 11. Informe Ejecutivo
       tabItem(tabName = "reporte",
         reporteUI("reporte_principal")
       ),
       
-      # 11. Información
+      # 12. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -132,11 +139,9 @@ ui <- dashboardPage(
 # 2. SERVIDOR (Server)
 server <- function(input, output, session) {
   
-  # Lógica reactiva de filtros y mapa
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
   datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
   
-  # KPIs principales (Protegidos contra NAs y vacíos)
   output$kpi_precio_medio <- renderValueBox({
     df <- datos_visibles()
     precio_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE)) else 0
@@ -171,7 +176,8 @@ server <- function(input, output, session) {
   oportunidadesServer("oportunidades_principal", datos_visibles)
   estadisticaServer("estadistica_principal", datos_visibles)
   recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
-  prediccionServer("prediccion_principal", datos_totales) # <- Instancia Servidor ML
+  prediccionServer("prediccion_principal", datos_totales)
+  barriosServer("barrios_principal", datos_totales) # <- Instancia Servidor Barrios
 }
 
 shinyApp(ui = ui, server = server)
