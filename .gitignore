@@ -5,3 +5,7 @@
 # Archivos de datos procesados/binarios
 data/processed/*.rds
 *.rds
+
+# Renderizados temporales de HTML/PDF
+*.html
+*.pdf

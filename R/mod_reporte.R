@@ -1,4 +1,4 @@
-# Módulo de Generación de Informes Ejecutivos para GeoAlquiler
+# Módulo de Generación y Descarga de Informes Ejecutivos
 
 reporteUI <- function(id) {
   ns <- NS(id)
@@ -18,7 +18,7 @@ reporteUI <- function(id) {
           ),
           column(4,
             br(),
-            downloadButton(ns("descargar_informe"), "Descargar Reporte HTML/PDF", class = "btn-success btn-block")
+            downloadButton(ns("descargar_informe"), "Descargar Reporte HTML", class = "btn-success btn-block")
           )
         )
       )
@@ -42,37 +42,40 @@ reporteServer <- function(id, datos = NULL) {
       df <- if (is.reactive(datos)) datos() else datos
       
       num_inmuebles <- if (!is.null(df)) nrow(df) else 0
-      precio_medio <- if (!is.null(df) && "precio" %in% names(df)) round(mean(df$precio, na.rm = TRUE), 0) else 0
+      precio_medio <- if (!is.null(df) && "precio" %in% names(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE), 0) else 0
       
-      pm2_medio <- if (!is.null(df) && all(c("precio", "superficie") %in% names(df))) {
+      pm2_medio <- if (!is.null(df) && all(c("precio", "superficie") %in% names(df)) && nrow(df) > 0) {
         round(mean(df$precio / df$superficie, na.rm = TRUE), 1)
       } else { 0 }
       
-      col_tit <- if (!is.null(df) && "titulo" %in% names(df)) "titulo" else names(df)[1]
-      col_pre <- if (!is.null(df) && "precio" %in% names(df)) "precio" else names(df)[2]
-      col_sup <- if (!is.null(df) && "superficie" %in% names(df)) "superficie" else names(df)[3]
-      col_ciu <- if (!is.null(df) && "ciudad" %in% names(df)) "ciudad" else col_tit
+      col_tit <- if (!is.null(df) && "titulo" %in% names(df)) "titulo" else if (!is.null(df)) names(df)[1] else ""
+      col_pre <- if (!is.null(df) && "precio" %in% names(df)) "precio" else if (!is.null(df)) names(df)[2] else ""
+      col_sup <- if (!is.null(df) && "superficie" %in% names(df)) "superficie" else if (!is.null(df)) names(df)[3] else ""
+      col_ciu <- if (!is.null(df) && "barrio" %in% names(df)) "barrio" else col_tit
       
       # Generar filas de la tabla de muestra
       filas_html <- ""
       if (!is.null(df) && nrow(df) > 0) {
-        top_df <- head(df, 8)
+        top_df <- head(df, 10)
         for (i in 1:nrow(top_df)) {
+          ratio_val <- if (top_df[[col_sup]][i] > 0) top_df[[col_pre]][i] / top_df[[col_sup]][i] else 0
           filas_html <- paste0(filas_html, sprintf(
             "<tr>
-              <td>%s</td>
-              <td>%s</td>
-              <td>%s €</td>
-              <td>%s m²</td>
-              <td>%.1f €/m²</td>
+              <td style='padding: 8px; border-bottom: 1px solid #e2e8f0;'>%s</td>
+              <td style='padding: 8px; border-bottom: 1px solid #e2e8f0;'>%s</td>
+              <td style='padding: 8px; border-bottom: 1px solid #e2e8f0;'>%s €</td>
+              <td style='padding: 8px; border-bottom: 1px solid #e2e8f0;'>%s m²</td>
+              <td style='padding: 8px; border-bottom: 1px solid #e2e8f0;'>%.1f €/m²</td>
             </tr>",
             top_df[[col_ciu]][i],
             top_df[[col_tit]][i],
             top_df[[col_pre]][i],
             top_df[[col_sup]][i],
-            top_df[[col_pre]][i] / top_df[[col_sup]][i]
+            ratio_val
           ))
         }
+      } else {
+        filas_html <- "<tr><td colspan='5' style='padding: 15px; text-align: center; color: #64748b;'>No hay datos disponibles para la selección actual.</td></tr>"
       }
       
       # Plantilla HTML con estilos inline
@@ -104,7 +107,7 @@ reporteServer <- function(id, datos = NULL) {
         <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #e2e8f0; font-size: 13px;">
           <thead>
             <tr style="background: #0f172a; color: white;">
-              <th style="padding: 10px; text-align: left;">Ciudad</th>
+              <th style="padding: 10px; text-align: left;">Zona / Barrio</th>
               <th style="padding: 10px; text-align: left;">Título</th>
               <th style="padding: 10px; text-align: left;">Precio</th>
               <th style="padding: 10px; text-align: left;">Superficie</th>
@@ -126,7 +129,7 @@ reporteServer <- function(id, datos = NULL) {
     # Handler de descarga
     output$descargar_informe <- downloadHandler(
       filename = function() {
-        paste0("GeoAlquiler_Informe_", Sys.Date(), ".html")
+        paste0("GeoAlquiler_Informe_", format(Sys.Date(), "%Y%m%d"), ".html")
       },
       content = function(file) {
         writeLines(generar_html_reporte(), file)

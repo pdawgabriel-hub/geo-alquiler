@@ -5,7 +5,9 @@ library(leaflet.extras)
 library(plotly)
 library(DT)
 
+# ==============================================================================
 # 0. CARGA DE MÓDULOS Y DATOS
+# ==============================================================================
 source("R/mod_filtros.R")
 source("R/mod_mapa.R")
 source("R/mod_graficos.R")
@@ -18,11 +20,14 @@ source("R/mod_oportunidades.R")
 source("R/mod_estadistica.R")
 source("R/mod_recomendador.R")
 source("R/mod_prediccion.R")
-source("R/mod_barrios.R") # <- Nuevo Módulo Zonal/Barrios
+source("R/mod_barrios.R")
 
+# Carga del dataset inicial
 datos_totales <- readRDS("data/processed/alquileres.rds")
 
+# ==============================================================================
 # 1. INTERFAZ DE USUARIO (UI)
+# ==============================================================================
 ui <- dashboardPage(
   skin = "blue",
   title = "GeoAlquiler",
@@ -32,13 +37,13 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
-      menuItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")), # <- Opción del menú
+      menuItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")),
       menuItem("Predicción ML", tabName = "prediccion", icon = icon("chart-line")),
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
       menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")),
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
-      menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-line")),
+      menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-bar")),
       menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
       menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
       menuItem("Informe Ejecutivo", tabName = "reporte", icon = icon("file-alt")),
@@ -68,7 +73,7 @@ ui <- dashboardPage(
         )
       ),
       
-      # 2. Análisis por Barrios (NUEVA PESTAÑA)
+      # 2. Análisis por Barrios
       tabItem(tabName = "barrios",
         barriosUI("barrios_principal")
       ),
@@ -116,7 +121,7 @@ ui <- dashboardPage(
         calculadoraUI("calc_principal")
       ),
 
-      # 11. Informe Ejecutivo
+      # 11. Informe Ejecutivo HTML
       tabItem(tabName = "reporte",
         reporteUI("reporte_principal")
       ),
@@ -128,7 +133,7 @@ ui <- dashboardPage(
             title = "Sobre el Proyecto GeoAlquiler", 
             width = 12, status = "primary", solidHeader = TRUE,
             h3("Inteligencia Inmobiliaria y Análisis Espacial"),
-            p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny.")
+            p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres.")
           )
         )
       )
@@ -136,12 +141,16 @@ ui <- dashboardPage(
   )
 )
 
-# 2. SERVIDOR (Server)
+# ==============================================================================
+# 2. SERVIDOR (SERVER)
+# ==============================================================================
 server <- function(input, output, session) {
   
+  # Lógica reactiva de filtros y mapa
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
   datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
   
+  # KPIs principales
   output$kpi_precio_medio <- renderValueBox({
     df <- datos_visibles()
     precio_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE)) else 0
@@ -166,7 +175,7 @@ server <- function(input, output, session) {
     valueBox(tot, "Inmuebles Visibles", icon = icon("building"), color = "blue")
   })
   
-  # Servidores Modulares
+  # Instancia de Servidores Modulares
   tablaServer("tabla_principal", datos_visibles)
   graficosServer("grafico_principal", datos_visibles)
   calculadoraServer("calc_principal", datos_visibles)
@@ -177,7 +186,7 @@ server <- function(input, output, session) {
   estadisticaServer("estadistica_principal", datos_visibles)
   recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
   prediccionServer("prediccion_principal", datos_totales)
-  barriosServer("barrios_principal", datos_totales) # <- Instancia Servidor Barrios
+  barriosServer("barrios_principal", datos_totales)
 }
 
 shinyApp(ui = ui, server = server)
