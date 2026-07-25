@@ -1,157 +1,220 @@
-# Módulo de Calculadora de Inversión y Análisis de Sensibilidad "What-If" para GeoAlquiler
+# Módulo de Calculadora Inmobiliaria, Amortización Hipotecaria y Cash Flow
 
-# 1. UI DEL MÓDULO
 calculadoraUI <- function(id) {
   ns <- NS(id)
   
   tagList(
     fluidRow(
       box(
-        title = tagList(icon("sliders-h"), " Parámetros de la Inversión"),
+        title = tagList(icon("calculator"), " Parámetros de Inversión y Financiación"),
         width = 4, status = "primary", solidHeader = TRUE,
-        numericInput(ns("precio_compra"), "Precio de Compra (€):", value = 150000, step = 5000),
-        numericInput(ns("gastos_compra"), "Gastos e Impuestos Compra (%):", value = 10, min = 0, max = 20),
-        numericInput(ns("reforma"), "Reforma / Puesta a punto (€):", value = 10000, step = 1000),
-        numericInput(ns("alquiler_mensual"), "Alquiler Estimado (€/mes):", value = 850, step = 50),
+        
+        numericInput(ns("precio_compra"), "Precio de Compra (€):", value = 180000, min = 10000, step = 5000),
+        numericInput(ns("alquiler_mensual"), "Alquiler Estimado Mensual (€):", value = 850, min = 100, step = 50),
+        numericInput(ns("gastos_mantenimiento"), "Gastos Anuales (Comunidad, IBI, Seguro) (€):", value = 1200, min = 0, step = 100),
+        
         hr(),
-        h5(strong("Estructura de Gastos Anuales")),
-        numericInput(ns("ibi_comunidad"), "IBI + Comunidad anual (€):", value = 1200, step = 100),
-        numericInput(ns("seguros"), "Seguros anuales (€):", value = 350, step = 50)
+        h4(icon("university"), " Condiciones Hipotecarias"),
+        sliderInput(ns("porcentaje_entrada"), "% Entrada / Capital Propio:", min = 0, max = 50, value = 20, step = 5, post = "%"),
+        numericInput(ns("interes_hipoteca"), "Tipo de Interés Anual (TIN):", value = 3.2, min = 0.1, max = 15, step = 0.1),
+        selectInput(ns("plazo_anos"), "Plazo de la Hipoteca:", choices = c("15 años" = 15, "20 años" = 20, "25 años" = 25, "30 años" = 30), selected = 25),
+        
+        hr(),
+        h4(icon("chart-line"), " Expectativas de Mercado"),
+        sliderInput(ns("incremento_alquiler"), "Subida Anual Alquiler / Inflación:", min = 0, max = 5, value = 2, step = 0.5, post = "%"),
+        sliderInput(ns("apreciacion_inmueble"), "Revalorización Anual Inmueble:", min = 0, max = 5, value = 1.5, step = 0.5, post = "%")
       ),
       
       box(
-        title = tagList(icon("chart-line"), " Simulación de Escenarios \"What-If\""),
-        width = 8, status = "warning", solidHeader = TRUE,
-        p("Ajusta los factores de riesgo para evaluar la resistencia de la inversión:"),
+        title = tagList(icon("chart-pie"), " Métricas Clave y Retorno"),
+        width = 8, status = "success", solidHeader = TRUE,
+        
         fluidRow(
-          column(6,
-            sliderInput(
-              ns("meses_ocupado"),
-              "Meses alquilado al año (Ocupación):",
-              min = 6, max = 12, value = 11, step = 0.5
-            )
-          ),
-          column(6,
-            sliderInput(
-              ns("pct_mantenimiento"),
-              "Gasto imprevisto / Mantenimiento (% alquiler):",
-              min = 0, max = 25, value = 5, step = 1, post = "%"
-            )
-          )
+          valueBoxOutput(ns("kpi_cuota_mensual"), width = 4),
+          valueBoxOutput(ns("kpi_roi_bruto"), width = 4),
+          valueBoxOutput(ns("kpi_cashflow_mensual"), width = 4)
         ),
-        hr(),
-        fluidRow(
-          valueBoxOutput(ns("vbox_inversion_total"), width = 4),
-          valueBoxOutput(ns("vbox_rent_bruta"), width = 4),
-          valueBoxOutput(ns("vbox_rent_neta"), width = 4)
+        
+        tabBox(
+          width = 12,
+          title = "Análisis Avanzado",
+          
+          tabPanel("Proyección de Flujo de Caja", 
+                   plotlyOutput(ns("grafico_proyeccion"), height = "380px")
+          ),
+          tabPanel("Cuadro de Amortización (Resumen Anual)", 
+                   DTOutput(ns("tabla_amortizacion"))
+          )
         )
-      )
-    ),
-    
-    fluidRow(
-      box(
-        title = tagList(icon("balance-scale"), " Comparativa de Escenarios de Ocupación vs Rentabilidad"),
-        width = 12, status = "info", solidHeader = TRUE,
-        DTOutput(ns("tabla_escenarios"))
       )
     )
   )
 }
 
-# 2. SERVER DEL MÓDULO (Acepta opcionalmente el argumento 'datos' de app.R sin dar error)
 calculadoraServer <- function(id, datos = NULL) {
   moduleServer(id, function(input, output, session) {
     
-    # Cálculos dinámicos de la inversión base y escenario actual
-    metricas <- reactive({
-      req(input$precio_compra, input$alquiler_mensual)
+    # 1. Cálculos Base Hipotecarios
+    simulacion <- reactive({
+      precio <- req(input$precio_compra)
+      alquiler <- req(input$alquiler_mensual)
+      gastos_anuales <- req(input$gastos_mantenimiento)
+      pct_entrada <- req(input$porcentaje_entrada) / 100
+      tin <- req(input$interes_hipoteca) / 100
+      anos <- as.numeric(req(input$plazo_anos))
+      inc_alquiler <- req(input$incremento_alquiler) / 100
+      aprec_inmueble <- req(input$apreciacion_inmueble) / 100
       
-      inversion_total <- input$precio_compra * (1 + input$gastos_compra / 100) + input$reforma
+      entrada <- precio * pct_entrada
+      monto_prestamo <- precio - entrada
       
-      # Ingresos brutos según meses de ocupación
-      ingresos_brutos_anuales <- input$alquiler_mensual * input$meses_ocupado
+      # Cuota Hipotecaria Francesa (mensual)
+      tasa_mensual <- tin / 12
+      num_cuotas <- anos * 12
       
-      # Gastos operativos
-      mantenimiento <- ingresos_brutos_anuales * (input$pct_mantenimiento / 100)
-      gastos_fijos <- input$ibi_comunidad + input$seguros
-      gastos_totales_anuales <- gastos_fijos + mantenimiento
+      cuota_mensual <- if (tin > 0) {
+        monto_prestamo * (tasa_mensual * (1 + tasa_mensual)^num_cuotas) / (((1 + tasa_mensual)^num_cuotas) - 1)
+      } else {
+        monto_prestamo / num_cuotas
+      }
       
-      ingresos_netos_anuales <- ingresos_brutos_anuales - gastos_totales_anuales
+      # Proyección año a año
+      df_proyeccion <- data.frame(
+        Ano = 0:anos,
+        Valor_Inmueble = NA_real_,
+        Saldo_Pendiente = NA_real_,
+        Ingreso_Alquiler_Anual = NA_real_,
+        Gastos_Operativos_Anuales = NA_real_,
+        Pago_Hipoteca_Anual = NA_real_,
+        Cash_Flow_Anual = NA_real_,
+        Cash_Flow_Acumulado = NA_real_
+      )
       
-      rent_bruta <- ( (input$alquiler_mensual * 12) / inversion_total ) * 100
-      rent_neta <- ( ingresos_netos_anuales / inversion_total ) * 100
+      # Año 0
+      df_proyeccion$Valor_Inmueble[1] <- precio
+      df_proyeccion$Saldo_Pendiente[1] <- monto_prestamo
+      df_proyeccion$Ingreso_Alquiler_Anual[1] <- 0
+      df_proyeccion$Gastos_Operativos_Anuales[1] <- 0
+      df_proyeccion$Pago_Hipoteca_Anual[1] <- 0
+      df_proyeccion$Cash_Flow_Anual[1] <- -entrada
+      df_proyeccion$Cash_Flow_Acumulado[1] <- -entrada
+      
+      saldo_actual <- monto_prestamo
+      alquiler_actual <- alquiler * 12
+      gastos_actuales <- gastos_anuales
+      cf_acumulado <- -entrada
+      
+      for (a in 1:anos) {
+        # Amortización del año
+        interes_ano <- 0
+        capital_ano <- 0
+        for (m in 1:12) {
+          int_m <- saldo_actual * tasa_mensual
+          cap_m <- cuota_mensual - int_m
+          interes_ano <- interes_ano + int_m
+          capital_ano <- capital_ano + cap_m
+          saldo_actual <- max(0, saldo_actual - cap_m)
+        }
+        
+        val_inmueble <- precio * ((1 + aprec_inmueble)^a)
+        ing_alq <- alquiler_actual * ((1 + inc_alquiler)^(a - 1))
+        gast_op <- gastos_actuales * ((1 + inc_alquiler)^(a - 1)) # Asumimos inflación en gastos
+        pago_hip <- cuota_mensual * 12
+        
+        cf_anual <- ing_alq - gast_op - pago_hip
+        cf_acumulado <- cf_acumulado + cf_anual
+        
+        df_proyeccion$Valor_Inmueble[a + 1] <- round(val_inmueble, 0)
+        df_proyeccion$Saldo_Pendiente[a + 1] <- round(saldo_actual, 0)
+        df_proyeccion$Ingreso_Alquiler_Anual[a + 1] <- round(ing_alq, 0)
+        df_proyeccion$Gastos_Operativos_Anuales[a + 1] <- round(gast_op, 0)
+        df_proyeccion$Pago_Hipoteca_Anual[a + 1] <- round(pago_hip, 0)
+        df_proyeccion$Cash_Flow_Anual[a + 1] <- round(cf_anual, 0)
+        df_proyeccion$Cash_Flow_Acumulado[a + 1] <- round(cf_acumulado, 0)
+      }
       
       list(
-        inversion_total = round(inversion_total, 2),
-        ingresos_brutos = round(ingresos_brutos_anuales, 2),
-        ingresos_netos = round(ingresos_netos_anuales, 2),
-        rent_bruta = round(rent_bruta, 2),
-        rent_neta = round(rent_neta, 2)
+        cuota_mensual = cuota_mensual,
+        entrada = entrada,
+        monto_prestamo = monto_prestamo,
+        proyeccion = df_proyeccion
       )
     })
     
-    # Renderizado de ValueBoxes
-    output$vbox_inversion_total <- renderValueBox({
-      m <- metricas()
+    # 2. Render KPIs
+    output$kpi_cuota_mensual <- renderValueBox({
+      sim <- simulacion()
       valueBox(
-        paste0(format(m$inversion_total, big.mark = "."), " €"),
-        "Inversión Total Inicial",
-        icon = icon("coins"),
+        paste0(round(sim$cuota_mensual, 0), " €/mes"),
+        "Cuota Hipotecaria",
+        icon = icon("university"),
         color = "blue"
       )
     })
     
-    output$vbox_rent_bruta <- renderValueBox({
-      m <- metricas()
+    output$kpi_roi_bruto <- renderValueBox({
+      precio <- req(input$precio_compra)
+      alquiler <- req(input$alquiler_mensual)
+      yield <- if (precio > 0) round(((alquiler * 12) / precio) * 100, 2) else 0
+      
       valueBox(
-        paste0(m$rent_bruta, " %"),
-        "Rentabilidad Bruta (100% Ocupación)",
+        paste0(yield, " %"),
+        "Rentabilidad Bruta Inicial",
         icon = icon("percentage"),
         color = "purple"
       )
     })
     
-    output$vbox_rent_neta <- renderValueBox({
-      m <- metricas()
-      col_color <- if (m$rent_neta >= 5) "green" else if (m$rent_neta >= 3) "yellow" else "red"
+    output$kpi_cashflow_mensual <- renderValueBox({
+      sim <- simulacion()
+      alquiler <- req(input$alquiler_mensual)
+      gastos_m <- req(input$gastos_mantenimiento) / 12
+      cf_mensual <- alquiler - gastos_m - sim$cuota_mensual
+      
+      col_color <- if (cf_mensual >= 0) "green" else "red"
       
       valueBox(
-        paste0(m$rent_neta, " %"),
-        "Rentabilidad Neta (Escenario Actual)",
-        icon = icon("chart-line"),
+        paste0(round(cf_mensual, 0), " €/mes"),
+        "Cash Flow Neto Año 1",
+        icon = icon("coins"),
         color = col_color
       )
     })
     
-    # Tabla de análisis de sensibilidad (Escenarios de 8 a 12 meses alquilado)
-    output$tabla_escenarios <- renderDataTable({
-      m <- metricas()
-      req(input$precio_compra, input$alquiler_mensual)
+    # 3. Gráfico de Proyección con Plotly
+    output$grafico_proyeccion <- renderPlotly({
+      sim <- simulacion()
+      df <- sim$proyeccion
       
-      inv_tot <- m$inversion_total
-      gastos_fijos <- input$ibi_comunidad + input$seguros
-      
-      # Generar matriz de sensibilidad con diferentes meses de ocupación
-      meses_vec <- c(12, 11, 10, 9, 8)
-      
-      escenarios <- data.frame(
-        Ocupacion = paste0(meses_vec, " meses (", round((meses_vec/12)*100), "%)"),
-        IngresosBrutos = meses_vec * input$alquiler_mensual,
-        GastosOperativos = round((meses_vec * input$alquiler_mensual * (input$pct_mantenimiento / 100)) + gastos_fijos, 2)
-      )
-      
-      escenarios$CashFlowAnual <- escenarios$IngresosBrutos - escenarios$GastosOperativos
-      escenarios$RentabilidadNeta <- paste0(round((escenarios$CashFlowAnual / inv_tot) * 100, 2), " %")
-      escenarios$CashFlowMensual <- paste0(round(escenarios$CashFlowAnual / 12, 2), " €")
-      escenarios$IngresosBrutos <- paste0(escenarios$IngresosBrutos, " €")
-      escenarios$CashFlowAnual <- paste0(escenarios$CashFlowAnual, " €")
+      plot_ly(df, x = ~Ano) %>%
+        add_trace(y = ~Cash_Flow_Acumulado, name = "Flujo Caja Acumulado (€)", type = 'scatter', mode = 'lines+markers',
+                   line = list(color = '#10b981', width = 3)) %>%
+        add_trace(y = ~Saldo_Pendiente, name = "Deuda Hipoteca Pendiente (€)", type = 'scatter', mode = 'lines',
+                   line = list(color = '#ef4444', dash = 'dash')) %>%
+        add_trace(y = ~Valor_Inmueble, name = "Valor Estimado Inmueble (€)", type = 'scatter', mode = 'lines',
+                   line = list(color = '#3b82f6', width = 2)) %>%
+        layout(
+          title = "Evolución Financiera del Inmueble en el Tiempo",
+          xaxis = list(title = "Año"),
+          yaxis = list(title = "Euros (€)"),
+          hovermode = "x unified",
+          legend = list(orientation = "h", x = 0, y = -0.2)
+        )
+    })
+    
+    # 4. Tabla DT de Amortización
+    output$tabla_amortizacion <- renderDT({
+      sim <- simulacion()
+      df <- sim$proyeccion[-1, ] # Omitir Año 0
       
       datatable(
-        escenarios,
-        colnames = c("Escenario Ocupación", "Ingresos Brutos/Año", "Gastos Totales/Año", "Cash Flow Anual", "Rentabilidad Neta", "Cash Flow Medio/Mes"),
-        options = list(dom = 't', ordering = FALSE),
+        df[, c("Ano", "Valor_Inmueble", "Saldo_Pendiente", "Ingreso_Alquiler_Anual", "Pago_Hipoteca_Anual", "Cash_Flow_Anual", "Cash_Flow_Acumulado")],
+        colnames = c("Año", "Valor Inmueble", "Deuda Pendiente", "Ingresos Alquiler", "Pago Hipoteca", "Cash Flow Neto", "CF Acumulado"),
+        options = list(pageLength = 10, dom = 'tip', scrollX = TRUE),
         rownames = FALSE
-      )
+      ) %>%
+        formatCurrency(2:7, currency = "€", interval = 3, mark = ".", dec.mark = ",", digits = 0)
     })
+    
   })
 }
