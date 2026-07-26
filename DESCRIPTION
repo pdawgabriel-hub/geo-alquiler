@@ -1,0 +1,20 @@
+Package: GeoAlquiler
+Title: Dashboard Interactivo de Análisis de Alquileres Inmobiliarios
+Version: 0.0.0.9000
+Authors@R: 
+    person("Gabriel", "Developer", email = "gabriel@example.com", role = c("aut", "cre"))
+Description: Aplicación analítica e interactiva para la exploración de precios de alquiler, cálculo de retornos de inversión (ROI) y geolocalización de inmuebles.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Imports: 
+    golem,
+    shiny,
+    shinydashboard,
+    bs4Dash,
+    arrow,
+    leaflet,
+    leaflet.extras,
+    DT,
+    plotly
