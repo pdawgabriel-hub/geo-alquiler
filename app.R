@@ -21,6 +21,7 @@ source("R/mod_estadistica.R")
 source("R/mod_recomendador.R")
 source("R/mod_prediccion.R")
 source("R/mod_barrios.R")
+source("R/mod_favoritos.R")
 
 # Carga del dataset inicial
 datos_totales <- readRDS("data/processed/alquileres.rds")
@@ -42,6 +43,7 @@ ui <- dashboardPage(
       menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
       menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
       menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")),
+      menuItem("Mis Favoritos", tabName = "favoritos", icon = icon("star")),
       menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
       menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-bar")),
       menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
@@ -98,12 +100,17 @@ ui <- dashboardPage(
         recomendadorUI("recomendador_principal")
       ),
       
-      # 7. Explorador de Datos (DT)
+      # 7. Mis Favoritos (Watchlist)
+      tabItem(tabName = "favoritos",
+        favoritosUI("fav_principal")
+      ),
+      
+      # 8. Explorador de Datos (DT)
       tabItem(tabName = "tabla",
         tablaUI("tabla_principal")
       ),
       
-      # 8. Analítica Avanzada + Exportación CSV
+      # 9. Analítica Avanzada + Exportación CSV
       tabItem(tabName = "analitica",
         graficosUI("grafico_principal"),
         fluidRow(
@@ -111,22 +118,22 @@ ui <- dashboardPage(
         )
       ),
       
-      # 9. Estadística Avanzada
+      # 10. Estadística Avanzada
       tabItem(tabName = "estadistica",
         estadisticaUI("estadistica_principal")
       ),
       
-      # 10. Calculadora Inmobiliaria
+      # 11. Calculadora Inmobiliaria
       tabItem(tabName = "calculadora",
         calculadoraUI("calc_principal")
       ),
 
-      # 11. Informe Ejecutivo HTML
+      # 12. Informe Ejecutivo HTML
       tabItem(tabName = "reporte",
         reporteUI("reporte_principal")
       ),
       
-      # 12. Información
+      # 13. Información
       tabItem(tabName = "informacion",
         fluidRow(
           box(
@@ -145,6 +152,9 @@ ui <- dashboardPage(
 # 2. SERVIDOR (SERVER)
 # ==============================================================================
 server <- function(input, output, session) {
+  
+  # Estado reactivo global para guardar IDs de inmuebles favoritos
+  favoritos_ids <- reactiveVal(c())
   
   # Lógica reactiva de filtros y mapa
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
@@ -176,7 +186,7 @@ server <- function(input, output, session) {
   })
   
   # Instancia de Servidores Modulares
-  tablaServer("tabla_principal", datos_visibles)
+  tablaServer("tabla_principal", datos_visibles, favoritos_ids)
   graficosServer("grafico_principal", datos_visibles)
   calculadoraServer("calc_principal", datos_visibles)
   exportarServer("exportar_datos", datos_visibles)
@@ -187,6 +197,7 @@ server <- function(input, output, session) {
   recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
   prediccionServer("prediccion_principal", datos_totales)
   barriosServer("barrios_principal", datos_totales)
+  favoritosServer("fav_principal", datos_totales, favoritos_ids)
 }
 
 shinyApp(ui = ui, server = server)
