@@ -30,7 +30,7 @@ app_server <- function(input, output, session) {
   output$kpi_precio_medio <- shinydashboard::renderValueBox({
     df <- datos_visibles()
     precio_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE)) else 0
-    shinydashboard::valueBox(paste0(precio_med, " €"), "Precio Medio", icon = icon("eur"), color = "purple")
+    shinydashboard::valueBox(paste0(precio_med, " €"), "Precio Medio", icon = icon("eur-sign"), color = "purple")
   })
   
   output$kpi_superficie_media <- shinydashboard::renderValueBox({

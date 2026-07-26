@@ -5,7 +5,7 @@
 #' @import shinydashboard
 #' @import leaflet
 #' @import leaflet.extras
-#' @import DT
+#' @importFrom DT DTOutput renderDT datatable formatCurrency formatStyle
 #' @import plotly
 #' @noRd
 app_ui <- function(request) {
@@ -22,7 +22,7 @@ app_ui <- function(request) {
       shinydashboard::dashboardSidebar(
         shinydashboard::sidebarMenu(
           # 1. EXPLORACIÓN
-          shinydashboard::menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
+          shinydashboard::menuItem("Panel Principal", tabName = "panel", icon = icon("gauge")),
           shinydashboard::menuItem("Explorador y Datos", icon = icon("compass"),
             shinydashboard::menuSubItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
             shinydashboard::menuSubItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")),

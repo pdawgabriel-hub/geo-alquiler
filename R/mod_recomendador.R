@@ -135,7 +135,7 @@ recomendadorServer <- function(id, datos) {
     })
     
     # 5. Renderizar Tabla final mostrando solo columnas existentes
-    output$tabla_similares <- renderDataTable({
+    output$tabla_similares <- renderDT({
       df_sim <- similares()
       req(df_sim)
       

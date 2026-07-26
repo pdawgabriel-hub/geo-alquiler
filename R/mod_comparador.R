@@ -78,7 +78,7 @@ comparadorServer <- function(id, datos_totales) {
     output$kpi_precio_a <- renderValueBox({
       df <- datos_a()
       p_med <- ifelse(nrow(df) > 0, round(mean(df$precio)), 0)
-      valueBox(paste0(p_med, " €"), "Precio Medio A", icon = icon("eur"), color = "blue")
+      valueBox(paste0(p_med, " €"), "Precio Medio A", icon = icon("eur-sign"), color = "blue")
     })
     
     output$kpi_m2_a <- renderValueBox({
@@ -100,7 +100,7 @@ comparadorServer <- function(id, datos_totales) {
     output$kpi_precio_b <- renderValueBox({
       df <- datos_b()
       p_med <- ifelse(nrow(df) > 0, round(mean(df$precio)), 0)
-      valueBox(paste0(p_med, " €"), "Precio Medio B", icon = icon("eur"), color = "green")
+      valueBox(paste0(p_med, " €"), "Precio Medio B", icon = icon("eur-sign"), color = "green")
     })
     
     output$kpi_m2_b <- renderValueBox({

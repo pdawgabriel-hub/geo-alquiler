@@ -28,7 +28,7 @@ barriosUI <- function(id) {
         plotlyOutput(ns("grafico_barras_m2"), height = 350)
       ),
       box(
-        title = tagList(icon("box-plot"), " Dispersión y Distribución de Precios (€)"),
+        title = tagList(icon("chart-bar"), " Dispersión y Distribución de Precios (€)"),
         width = 6, status = "warning", solidHeader = TRUE,
         plotlyOutput(ns("grafico_boxplot_barrios"), height = 350)
       )
