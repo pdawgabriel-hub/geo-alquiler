@@ -4,6 +4,7 @@ library(leaflet)
 library(leaflet.extras)
 library(plotly)
 library(DT)
+library(arrow)
 
 # ==============================================================================
 # 0. CARGA DE MÓDULOS Y DATOS
@@ -24,7 +25,7 @@ source("R/mod_barrios.R")
 source("R/mod_favoritos.R")
 
 # Carga del dataset inicial
-datos_totales <- readRDS("data/processed/alquileres.rds")
+datos_totales <- arrow::read_parquet("data/processed/alquileres.parquet")
 
 # ==============================================================================
 # 1. INTERFAZ DE USUARIO (UI)
