@@ -37,18 +37,31 @@ ui <- dashboardPage(
   
   dashboardSidebar(
     sidebarMenu(
+      # 1. EXPLORACIÓN
       menuItem("Panel Principal", tabName = "panel", icon = icon("dashboard")),
-      menuItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")),
-      menuItem("Predicción ML", tabName = "prediccion", icon = icon("chart-line")),
-      menuItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
-      menuItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
-      menuItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic")),
-      menuItem("Mis Favoritos", tabName = "favoritos", icon = icon("star")),
-      menuItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
-      menuItem("Analítica Avanzada", tabName = "analitica", icon = icon("chart-bar")),
-      menuItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
-      menuItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
-      menuItem("Informe Ejecutivo", tabName = "reporte", icon = icon("file-alt")),
+      menuItem("Explorador y Datos", icon = icon("compass"),
+        menuSubItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
+        menuSubItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")),
+        menuSubItem("Mis Favoritos", tabName = "favoritos", icon = icon("star"))
+      ),
+      
+      # 2. ANALÍTICA Y MODELOS ML
+      menuItem("Analítica y Ciencia de Datos", icon = icon("brain"),
+        menuSubItem("Analítica Visual", tabName = "analitica", icon = icon("chart-bar")),
+        menuSubItem("Estadística Avanzada", tabName = "estadistica", icon = icon("chart-pie")),
+        menuSubItem("Predicción ML", tabName = "prediccion", icon = icon("chart-line")),
+        menuSubItem("Recomendador KNN", tabName = "recomendador", icon = icon("magic"))
+      ),
+      
+      # 3. HERRAMIENTAS DE NEGOCIO E INVERSIÓN
+      menuItem("Herramientas de Inversión", icon = icon("briefcase"),
+        menuSubItem("Comparador A/B", tabName = "comparador", icon = icon("balance-scale")),
+        menuSubItem("Oportunidades", tabName = "oportunidades", icon = icon("award")),
+        menuSubItem("Calculadora Inversión", tabName = "calculadora", icon = icon("calculator")),
+        menuSubItem("Informe Ejecutivo", tabName = "reporte", icon = icon("file-alt"))
+      ),
+      
+      # 4. INFORMACIÓN
       menuItem("Información", tabName = "informacion", icon = icon("info-circle"))
     )
   ),
