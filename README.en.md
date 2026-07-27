@@ -225,7 +225,7 @@ On top of this, `{testthat}` is used as a development dependency for the test su
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-URL>
+   git clone https://github.com/pdawgabriel-hub/geo-alquiler.git
    cd geo-alquiler
    ```
 
@@ -318,7 +318,7 @@ Everything above can be done entirely from a Bash terminal, without ever opening
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-URL>
+git clone https://github.com/pdawgabriel-hub/geo-alquiler.git
 cd geo-alquiler
 ```
 
@@ -449,7 +449,7 @@ This command verifies, in addition to the tests, the consistency of the `DESCRIP
 <a id="deployment"></a>
 ## Deployment
 
-Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the development environment, GeoAlquiler is ready to be deployed on several common Shiny ecosystem environments:
+Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the development environment, GeoAlquiler is ready to be deployed on several common Shiny ecosystem environments.
 
 In progress.....
 

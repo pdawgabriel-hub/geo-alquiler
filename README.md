@@ -48,7 +48,7 @@ Para lograrlo, GeoAlquiler se apoya en tres pilares:
 2. **Analítica & Machine Learning** — extraer patrones, generar predicciones de precio y recomendar inmuebles similares.
 3. **Herramientas de Inversión** — traducir los datos en decisiones concretas de compra/alquiler mediante calculadoras y comparativas.
 
-El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics).
+El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los datos son generados de forma ficticia por ahora.
 
 [⬆ Volver arriba](#top)
 
@@ -99,7 +99,7 @@ La aplicación está organizada en tres bloques funcionales, reflejados directam
 <a id="capturas-pantalla"></a>
 ## Capturas de Pantalla
 
-A continuación se muestran las pantallas principales de la aplicación, organizadas por los mismos tres bloques funcionales que la navegación. Sustituye cada placeholder por tu captura correspondiente siguiendo la guía de la sección siguiente.
+A continuación se muestran las pantallas principales de la aplicación, organizadas por los mismos tres bloques funcionales que la navegación.
 
 ### Exploración Espacial
 
@@ -225,7 +225,7 @@ A esto se suma `{testthat}` como dependencia de desarrollo para la suite de test
 1. **Clonar el repositorio**
 
    ```bash
-   git clone <URL-del-repositorio>
+   git clone https://github.com/pdawgabriel-hub/geo-alquiler.git
    cd geo-alquiler
    ```
 
@@ -449,7 +449,7 @@ Este comando verifica, además de los tests, la consistencia del `DESCRIPTION`, 
 <a id="despliegue"></a>
 ## Despliegue
 
-Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado del entorno de desarrollo, GeoAlquiler está preparado para desplegarse en varios entornos habituales del ecosistema Shiny:
+Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado del entorno de desarrollo, GeoAlquiler está preparado para desplegarse en varios entornos habituales del ecosistema Shiny.
 
 En desarrollo.....
 
