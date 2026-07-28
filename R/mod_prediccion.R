@@ -106,7 +106,8 @@ prediccionServer <- function(id, datos_totales) {
       
       p <- ggplot(df_c, aes(x = superficie, y = precio)) +
         geom_point(alpha = 0.3, color = "gray") +
-        geom_point(aes(x = input$superficie, y = res$estimado), color = "red", size = 5) +
+        geom_point(data = data.frame(superficie = input$superficie, precio = res$estimado), 
+           aes(x = superficie, y = precio), color = "red", size = 4) +
         geom_errorbar(aes(x = input$superficie, ymin = res$min_90, ymax = res$max_90), color = "red", width = 5) +
         theme_minimal() +
         labs(

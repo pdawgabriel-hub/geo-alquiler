@@ -15,5 +15,7 @@ Imports:
     leaflet,
     leaflet.extras,
     DT,
-    plotly
+    plotly,
+    ggplot2,
+    stats
 Config/roxygen2/version: 8.0.0

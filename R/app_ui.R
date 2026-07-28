@@ -5,6 +5,7 @@
 #' @import shinydashboard
 #' @import leaflet
 #' @import leaflet.extras
+#' @import ggplot2
 #' @importFrom DT DTOutput renderDT datatable formatCurrency formatStyle
 #' @import plotly
 #' @noRd
@@ -133,7 +134,7 @@ app_ui <- function(request) {
                 title = "Sobre el Proyecto GeoAlquiler", 
                 width = 12, status = "primary", solidHeader = TRUE,
                 h3("Inteligencia Inmobiliaria y Análisis Espacial"),
-                p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres.")
+                p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres. Todos los datos son fictios. ")
               )
             )
           )
