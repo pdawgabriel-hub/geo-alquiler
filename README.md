@@ -22,6 +22,7 @@
   - [3. Herramientas de Inversión](#herramientas-inversion)
 - [Capturas de Pantalla](#capturas-pantalla)
 - [Estructura del Proyecto (`{golem}`)](#estructura-proyecto)
+- [Fuente de los Datos](#fuente-datos)
 - [Requisitos e Instalación](#requisitos-instalacion)
 - [Uso y Ejecución](#uso-ejecucion)
 - [Uso desde la Terminal (sin RStudio)](#uso-terminal)
@@ -206,6 +207,55 @@ geo-alquiler/
 
 ---
 
+<a id="fuente-datos"></a>
+## Fuente de los Datos
+
+El dataset que consume la app (`inst/app/data/alquileres.parquet`) **ya no se genera con datos ficticios**: se construye con un pipeline de ingesta (`scripts/ingesta/`) que descarga y combina fuentes reales, priorizando siempre la fuente oficial más desagregada disponible para cada ciudad.
+
+### Fuentes por ciudad
+
+| Ciudad | Fuente real | Detalle | Fiabilidad |
+|---|---|---|---|
+| **Barcelona** | Generalitat de Catalunya (INCASÒL) — fianzas de lloguer depositadas | Por barrio (73 barrios) | Oficial |
+| **Bilbao** | Gobierno Vasco (Etxebide) — Informe EMAL trimestral | Por barrio (€/m² ya calculado por la fuente) | Oficial |
+| **Valencia** | Generalitat Valenciana — registro de fianzas de alquiler depositadas | Por código postal (barrio real resuelto vía geocodificación inversa) | Oficial |
+| **Madrid, Sevilla** | Sin fuente pública con importe + geografía (verificado) | Municipio + un puñado de barrios conocidos | Ancla manual, documentada en `data/raw/anclas_manuales.csv` |
+
+En Madrid y Sevilla no existe ningún registro público (ni estatal ni autonómico) de fianzas de alquiler con importe y desglose geográfico — se comprobó expresamente antes de recurrir a una alternativa. Para esos casos (y para cualquier zona sin fuente oficial que se quiera destacar) se usa un **ancla manual**: un precio/m² documentado a mano a partir de un índice publicado (idealista/fotocasa), con fecha, URL y nota de fiabilidad en `data/raw/anclas_manuales.csv`. Estas filas quedan siempre marcadas como estimadas (ver esquema de columnas más abajo) para no aparentar más precisión de la que realmente tienen.
+
+### Cómo se regenera el dataset
+
+```bash
+Rscript scripts/ingesta/run_pipeline.R
+```
+
+Esto descarga (con caché en `data/raw/`, para no repetir peticiones si ya está reciente) cada fuente, la geocodifica con [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/), combina todo en una tabla única de precio/m² por zona y genera los inmuebles individuales que ve la app, guardando el resultado en `data/processed/` e `inst/app/data/`. El pipeline está organizado en pasos numerados dentro de `scripts/ingesta/` (config → utilidades → una fuente por ciudad → anclas manuales → geocodificación → armonización → generación), pensado para poder añadir una ciudad nueva tocando solo `00_config.R` y, si hace falta, `data/raw/anclas_manuales.csv`.
+
+Si alguna fuente cambia de formato o de URL, el script correspondiente se detiene con un error explícito indicando qué columnas ha encontrado, en vez de guardar datos mal interpretados en silencio.
+
+### Esquema del dataset final
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | texto | Identificador único del inmueble |
+| `titulo` | texto | Título descriptivo generado (tipo + zona + ciudad) |
+| `ciudad` | texto | Municipio |
+| `barrio` | texto | Barrio/distrito/código postal resuelto (o el nombre del municipio si no hay desglose) |
+| `tipo` | texto | Piso, Apartamento, Ático, Estudio o Casa / Chalet |
+| `precio` | numérico | Alquiler mensual estimado (€), derivado del €/m² real de la zona |
+| `superficie` | numérico | Superficie (m²) |
+| `habitaciones` / `banos` | numérico | Nº de habitaciones / baños |
+| `lat` / `lon` / `lng` | numérico | Coordenadas reales (geocodificación de la zona, no aleatorias) |
+| `fuente_dato` | texto | De dónde sale el precio/m² de esa zona (nombre de la fuente oficial, o del índice usado como ancla) |
+| `es_estimado` | lógico | `TRUE` si la zona no tiene fuente oficial (ancla manual) — la app lo señala como tal |
+| `nivel_geo` | texto | Granularidad real del dato: `barrio`, `municipio`, `zona_sin_fuente_oficial`, etc. |
+
+Los "anuncios" individuales son una ilustración generada dentro de cada zona geolocalizada (superficie, tipología y un margen de ruido aleatorio), pero el precio de cada uno **siempre parte del precio/m² real de su zona** — nunca de un número inventado desde cero.
+
+[⬆ Volver arriba](#top)
+
+---
+
 <a id="requisitos-instalacion"></a>
 ## Requisitos e Instalación
 
@@ -229,6 +279,17 @@ geo-alquiler/
 | [`plotly`](https://cran.r-project.org/package=plotly) | Gráficos interactivos de analítica visual |
 
 A esto se suma `{testthat}` como dependencia de desarrollo para la suite de tests, y `{renv}` para el control de versiones de todas las dependencias. Además, necesitas `{roxygen2}` instalado para generar el archivo `NAMESPACE` del paquete (ver paso 4 de la instalación) — sin él, la aplicación **no arranca correctamente**, ya que `NAMESPACE` es lo que le indica a R qué funciones de `shiny`, `leaflet`, `DT`, etc. debe poner a disposición del código de la app.
+
+**Solo si vas a regenerar los datos** (`Rscript scripts/ingesta/run_pipeline.R`, ver [Fuente de los Datos](#fuente-datos)) necesitas además:
+
+| Dependencia | Uso |
+|---|---|
+| `{httr}` | Descarga de las fuentes (Suggests en `DESCRIPTION`) |
+| `{readxl}` | Lectura del Excel de Barcelona (Suggests) |
+| `{jsonlite}` | Geocodificación vía Nominatim (Suggests) |
+| `pdftotext` (paquete de sistema `poppler-utils`) | Extraer texto del informe trimestral de Bilbao. En Linux: `sudo apt install poppler-utils` |
+
+La app en sí **no necesita nada de esto** para arrancar: viaja con el dataset ya generado en `inst/app/data/alquileres.parquet`.
 
 ### Instalación paso a paso
 
@@ -468,6 +529,7 @@ Se recomienda:
 1. Asegurar que `renv.lock` está actualizado (`renv::snapshot()`) antes de desplegar, para garantizar reproducibilidad exacta de versiones en el servidor de destino.
 2. Verificar que los datos necesarios (`inst/app/data/alquileres.parquet`) están incluidos en el despliegue, ya que la app depende de ellos para funcionar.
 3. Revisar que `options("golem.app.prod" = TRUE)` esté activo en producción (ya configurado en `app.R`), lo que desactiva ciertas ayudas de desarrollo y optimiza el arranque.
+4. Refrescar los datos periódicamente ejecutando `Rscript scripts/ingesta/run_pipeline.R` (ver [Fuente de los Datos](#fuente-datos)) antes de cada despliegue, ya que las fuentes oficiales se actualizan con periodicidad propia (trimestral en el caso de Bilbao).
 
 [⬆ Volver arriba](#top)
 

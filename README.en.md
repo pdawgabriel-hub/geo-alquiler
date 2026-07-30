@@ -22,6 +22,7 @@
   - [3. Investment Tools](#investment-tools)
 - [Screenshots](#screenshots)
 - [Project Structure (`{golem}`)](#project-structure)
+- [Data Source](#data-source)
 - [Requirements & Installation](#requirements-installation)
 - [Usage & Execution](#usage-execution)
 - [Usage from the Terminal (without RStudio)](#terminal-usage)
@@ -206,6 +207,55 @@ geo-alquiler/
 
 ---
 
+<a id="data-source"></a>
+## Data Source
+
+The dataset the app consumes (`inst/app/data/alquileres.parquet`) **is no longer generated from fictitious data**: it's built by an ingestion pipeline (`scripts/ingesta/`) that downloads and combines real sources, always prioritizing the most granular official source available for each city.
+
+### Sources by city
+
+| City | Real source | Detail level | Reliability |
+|---|---|---|---|
+| **Barcelona** | Generalitat de Catalunya (INCASÒL) — deposited rental bonds | By neighborhood (73 barrios) | Official |
+| **Bilbao** | Basque Government (Etxebide) — quarterly EMAL report | By neighborhood (€/m² already computed by the source) | Official |
+| **Valencia** | Generalitat Valenciana — registry of deposited rental bonds | By postal code (real neighborhood resolved via reverse geocoding) | Official |
+| **Madrid, Sevilla** | No public source with amount + geography (verified) | Municipality + a handful of well-known neighborhoods | Manual anchor, documented in `data/raw/anclas_manuales.csv` |
+
+Madrid and Sevilla have no public registry (national or regional) of rental bonds with amount and geographic breakdown — this was explicitly checked before falling back to an alternative. For those cases (and for any zone without an official source worth highlighting), a **manual anchor** is used: a price/m² documented by hand from a published index (idealista/fotocasa), with date, URL, and a reliability note in `data/raw/anclas_manuales.csv`. These rows are always flagged as estimated (see column schema below) so they never appear as precise as an official figure.
+
+### How the dataset is regenerated
+
+```bash
+Rscript scripts/ingesta/run_pipeline.R
+```
+
+This downloads each source (cached in `data/raw/`, so requests aren't repeated if already recent), geocodes it with [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/), combines everything into a single price/m² table by zone, and generates the individual listings the app sees, saving the result to `data/processed/` and `inst/app/data/`. The pipeline is organized in numbered steps inside `scripts/ingesta/` (config → utilities → one source per city → manual anchors → geocoding → harmonization → generation), designed so a new city can be added by touching only `00_config.R` and, if needed, `data/raw/anclas_manuales.csv`.
+
+If a source changes format or URL, the corresponding script stops with an explicit error showing which columns it actually found, instead of silently saving misread data.
+
+### Final dataset schema
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | text | Unique listing identifier |
+| `titulo` | text | Generated descriptive title (type + zone + city) |
+| `ciudad` | text | Municipality |
+| `barrio` | text | Resolved neighborhood/district/postal code (or the municipality name if there's no breakdown) |
+| `tipo` | text | Piso, Apartamento, Ático, Estudio, or Casa / Chalet |
+| `precio` | numeric | Estimated monthly rent (€), derived from the zone's real €/m² |
+| `superficie` | numeric | Surface area (m²) |
+| `habitaciones` / `banos` | numeric | Number of bedrooms / bathrooms |
+| `lat` / `lon` / `lng` | numeric | Real coordinates (zone geocoding, not random) |
+| `fuente_dato` | text | Where that zone's €/m² comes from (official source name, or the index used as an anchor) |
+| `es_estimado` | logical | `TRUE` if the zone has no official source (manual anchor) — flagged as such in the app |
+| `nivel_geo` | text | Real granularity of the data: `barrio`, `municipio`, `zona_sin_fuente_oficial`, etc. |
+
+Individual "listings" are an illustration generated within each geolocated zone (surface, type, and a random noise margin), but each one's price **always starts from its zone's real €/m²** — never from a number invented from scratch.
+
+[⬆ Back to top](#top)
+
+---
+
 <a id="requirements-installation"></a>
 ## Requirements & Installation
 
@@ -229,6 +279,17 @@ geo-alquiler/
 | [`plotly`](https://cran.r-project.org/package=plotly) | Interactive visual analytics charts |
 
 On top of this, `{testthat}` is used as a development dependency for the test suite, and `{renv}` for version control of all dependencies. You'll also need `{roxygen2}` installed to generate the package's `NAMESPACE` file (see step 4 of the installation) — without it, the application **won't start correctly**, since `NAMESPACE` is what tells R which functions from `shiny`, `leaflet`, `DT`, etc. should be made available to the app's code.
+
+**Only if you're going to regenerate the data** (`Rscript scripts/ingesta/run_pipeline.R`, see [Data Source](#data-source)) you'll also need:
+
+| Dependency | Use |
+|---|---|
+| `{httr}` | Downloading the sources (Suggests in `DESCRIPTION`) |
+| `{readxl}` | Reading Barcelona's Excel file (Suggests) |
+| `{jsonlite}` | Geocoding via Nominatim (Suggests) |
+| `pdftotext` (`poppler-utils` system package) | Extracting text from Bilbao's quarterly report. On Linux: `sudo apt install poppler-utils` |
+
+The app itself **needs none of this** to start: it ships with the dataset already generated at `inst/app/data/alquileres.parquet`.
 
 ### Step-by-Step Installation
 
@@ -468,6 +529,7 @@ It is recommended to:
 1. Make sure `renv.lock` is up to date (`renv::snapshot()`) before deploying, to guarantee exact version reproducibility on the target server.
 2. Verify that the required data (`inst/app/data/alquileres.parquet`) is included in the deployment, since the app depends on it to function.
 3. Check that `options("golem.app.prod" = TRUE)` is active in production (already configured in `app.R`), which disables certain development helpers and optimizes startup.
+4. Refresh the data periodically by running `Rscript scripts/ingesta/run_pipeline.R` (see [Data Source](#data-source)) before each deployment, since the official sources update on their own schedule (quarterly in Bilbao's case).
 
 [⬆ Back to top](#top)
 
