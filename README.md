@@ -520,16 +520,16 @@ Este comando verifica, además de los tests, la consistencia del `DESCRIPTION`, 
 <a id="despliegue"></a>
 ## Despliegue
 
-Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado del entorno de desarrollo, GeoAlquiler está preparado para desplegarse en varios entornos habituales del ecosistema Shiny.
+Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado del entorno de desarrollo, GeoAlquiler está preparado para desplegarse en varios entornos habituales del ecosistema Shiny. Actualmente está desplegado de forma gratuita en shinyapps.io:
 
-En desarrollo.....
+**[https://pdawgabriel-hub.shinyapps.io/geoalquiler/](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**
 
-Se recomienda:
+### Notas de compatibilidad (lecciones del primer despliegue)
 
-1. Asegurar que `renv.lock` está actualizado (`renv::snapshot()`) antes de desplegar, para garantizar reproducibilidad exacta de versiones en el servidor de destino.
-2. Verificar que los datos necesarios (`inst/app/data/alquileres.parquet`) están incluidos en el despliegue, ya que la app depende de ellos para funcionar.
-3. Revisar que `options("golem.app.prod" = TRUE)` esté activo en producción (ya configurado en `app.R`), lo que desactiva ciertas ayudas de desarrollo y optimiza el arranque.
-4. Refrescar los datos periódicamente ejecutando `Rscript scripts/ingesta/run_pipeline.R` (ver [Fuente de los Datos](#fuente-datos)) antes de cada despliegue, ya que las fuentes oficiales se actualizan con periodicidad propia (trimestral en el caso de Bilbao).
+- **`terra`**: la versión más reciente de CRAN puede fallar al compilar en shinyapps.io por una API de GDAL más nueva de la que tiene su imagen del servidor (error típico: `GDALMDArray::AsClassicDataset` con firma distinta). Si pasa, fija una versión anterior a la que introdujo el soporte GDAL multidimensional (`renv::install("terra@1.8-42")` seguido de `renv::record("terra@1.8-42")`) — pero por encima de la versión mínima que exige `{raster}` (`>= 1.8.5`).
+- **`shiny.autoload.r`**: en shinyapps.io/Posit Connect, la sola presencia de una carpeta `R/` junto a `app.R` hace que Shiny la autocargue como "ficheros de apoyo" **antes** de que se ejecute `app.R` (donde poner esta opción llega tarde). Por eso `.Rprofile` fija `options(shiny.autoload.r = FALSE)` — si el error `Error in box: plot.new has not been called yet` reaparece, es que esta opción no se está aplicando a tiempo.
+- Recuerda ejecutar `renv::snapshot()` (o `renv::record()` para un paquete concreto) antes de desplegar, para que `renv.lock` refleje exactamente lo que necesita el servidor.
+- Refresca los datos periódicamente con `Rscript scripts/ingesta/run_pipeline.R` (ver [Fuente de los Datos](#fuente-datos)) antes de cada despliegue, ya que las fuentes oficiales se actualizan con periodicidad propia (trimestral en el caso de Bilbao).
 
 [⬆ Volver arriba](#top)
 

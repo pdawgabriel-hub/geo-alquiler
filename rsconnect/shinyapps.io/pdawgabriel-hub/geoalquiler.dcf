@@ -1,0 +1,10 @@
+name: geoalquiler
+title:
+username: pdawgabriel-hub
+account: pdawgabriel-hub
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17655740
+bundleId: 12344926
+url: https://pdawgabriel-hub.shinyapps.io/geoalquiler/
+version: 1

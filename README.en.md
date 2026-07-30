@@ -520,16 +520,16 @@ This command verifies, in addition to the tests, the consistency of the `DESCRIP
 <a id="deployment"></a>
 ## Deployment
 
-Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the development environment, GeoAlquiler is ready to be deployed on several common Shiny ecosystem environments.
+Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the development environment, GeoAlquiler is ready to be deployed on several common Shiny ecosystem environments. It's currently deployed for free on shinyapps.io:
 
-In progress.....
+**[https://pdawgabriel-hub.shinyapps.io/geoalquiler/](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**
 
-It is recommended to:
+### Compatibility notes (lessons from the first deployment)
 
-1. Make sure `renv.lock` is up to date (`renv::snapshot()`) before deploying, to guarantee exact version reproducibility on the target server.
-2. Verify that the required data (`inst/app/data/alquileres.parquet`) is included in the deployment, since the app depends on it to function.
-3. Check that `options("golem.app.prod" = TRUE)` is active in production (already configured in `app.R`), which disables certain development helpers and optimizes startup.
-4. Refresh the data periodically by running `Rscript scripts/ingesta/run_pipeline.R` (see [Data Source](#data-source)) before each deployment, since the official sources update on their own schedule (quarterly in Bilbao's case).
+- **`terra`**: the latest CRAN version can fail to compile on shinyapps.io due to a newer GDAL API than the one on their server image (typical error: `GDALMDArray::AsClassicDataset` with a different signature). If this happens, pin a version older than the one that introduced multidimensional GDAL support (`renv::install("terra@1.8-42")` followed by `renv::record("terra@1.8-42")`) — but above the minimum version `{raster}` requires (`>= 1.8.5`).
+- **`shiny.autoload.r`**: on shinyapps.io/Posit Connect, the mere presence of an `R/` folder next to `app.R` makes Shiny auto-load it as "helper files" **before** `app.R` even runs (setting this option there is too late). That's why `.Rprofile` sets `options(shiny.autoload.r = FALSE)` — if the error `Error in box: plot.new has not been called yet` reappears, this option isn't being applied in time.
+- Remember to run `renv::snapshot()` (or `renv::record()` for a specific package) before deploying, so `renv.lock` reflects exactly what the server needs.
+- Refresh the data periodically by running `Rscript scripts/ingesta/run_pipeline.R` (see [Data Source](#data-source)) before each deployment, since the official sources update on their own schedule (quarterly in Bilbao's case).
 
 [⬆ Back to top](#top)
 

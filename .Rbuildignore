@@ -2,3 +2,16 @@
 ^renv\.lock$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+
+# No hace falta en el servidor desplegado: pipeline de ingesta, datos crudos/
+# cachés, tests, capturas de pantalla y documentación -- solo alargan la
+# subida a shinyapps.io sin aportar nada en tiempo de ejecución.
+^scripts$
+^data/raw$
+^tests$
+^man$
+^README.*\.md$
+^LICENSE.*\.md$
+^reporte_plantilla\.Rmd$
+^\.claude$
+^\.github$
