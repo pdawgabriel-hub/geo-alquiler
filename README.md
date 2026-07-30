@@ -48,7 +48,7 @@ Para lograrlo, GeoAlquiler se apoya en tres pilares:
 2. **Analítica & Machine Learning** — extraer patrones, generar predicciones de precio y recomendar inmuebles similares.
 3. **Herramientas de Inversión** — traducir los datos en decisiones concretas de compra/alquiler mediante calculadoras y comparativas.
 
-El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los datos son generados de forma ficticia por ahora.
+El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los precios por zona proceden de fuentes reales (Generalitat de Catalunya, Generalitat Valenciana, Gobierno Vasco) o, donde no existe fuente oficial, de índices publicados documentados a mano (ver `scripts/ingesta/`).
 
 [⬆ Volver arriba](#top)
 
@@ -168,9 +168,19 @@ geo-alquiler/
 ├── data/
 │   └── processed/          # Datos procesados en formatos .rds / .parquet
 ├── scripts/
-│   └── convertir_parquet.R # Utilidad para convertir/preparar datasets a formato Parquet
-├── generar_datos.R                # Script de generación/preparación de datos
-├── generar_datos_simulados.R      # Script de generación de datos simulados para demo/desarrollo
+│   └── ingesta/                    # Pipeline de ingesta de datos reales (sustituye a los
+│       ├── 00_config.R             # generadores de datos ficticios que había antes)
+│       ├── 01_utils.R               # Descarga con caché + geocodificación (Nominatim)
+│       ├── 02_fuente_barcelona.R    # Fuente real: Generalitat de Catalunya (INCASÒL)
+│       ├── 03_fuente_valencia.R     # Fuente real: Generalitat Valenciana (fianzas)
+│       ├── 04_fuente_bilbao.R       # Fuente real: Etxebide / Gobierno Vasco (Informe EMAL)
+│       ├── 05_anclas_manuales.R     # Precios documentados a mano donde no hay fuente oficial
+│       ├── 06_geocodificar_zonas.R  # Lat/lon reales por zona
+│       ├── 07_armonizar_precios.R   # Combina todas las fuentes en una tabla única
+│       ├── 08_generar_anuncios.R    # Genera los inmuebles individuales que usa la app
+│       └── run_pipeline.R           # Orquestador: Rscript scripts/ingesta/run_pipeline.R
+├── data/raw/
+│   └── anclas_manuales.csv        # Precios documentados a mano (ciudades sin fuente oficial)
 ├── reporte_plantilla.Rmd          # Plantilla R Markdown usada por el módulo de Informe Ejecutivo
 ├── tests/
 │   ├── testthat.R                 # Runner estándar de testthat para el paquete

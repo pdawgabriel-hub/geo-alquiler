@@ -48,7 +48,7 @@ To achieve this, GeoAlquiler is built on three pillars:
 2. **Analytics & Machine Learning** — extract patterns, generate price predictions, and recommend similar properties.
 3. **Investment Tools** — turn the data into concrete buy/rent decisions through calculators and comparisons.
 
-The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics).
+The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics). Per-zone prices come from real sources (Generalitat de Catalunya, Generalitat Valenciana, Basque Government) or, where no official source exists, from published indices documented by hand (see `scripts/ingesta/`).
 
 [⬆ Back to top](#top)
 
@@ -168,9 +168,19 @@ geo-alquiler/
 ├── data/
 │   └── processed/          # Processed data in .rds / .parquet formats
 ├── scripts/
-│   └── convertir_parquet.R # Utility to convert/prepare datasets to Parquet format
-├── generar_datos.R                # Data generation/preparation script
-├── generar_datos_simulados.R      # Simulated data generation script for demo/development
+│   └── ingesta/                    # Real-data ingestion pipeline (replaces the old
+│       ├── 00_config.R             # fictitious-data generator scripts)
+│       ├── 01_utils.R               # Cached download + geocoding (Nominatim)
+│       ├── 02_fuente_barcelona.R    # Real source: Generalitat de Catalunya (INCASÒL)
+│       ├── 03_fuente_valencia.R     # Real source: Generalitat Valenciana (deposits)
+│       ├── 04_fuente_bilbao.R       # Real source: Etxebide / Basque Government (EMAL report)
+│       ├── 05_anclas_manuales.R     # Hand-documented prices where no official source exists
+│       ├── 06_geocodificar_zonas.R  # Real lat/lon per zone
+│       ├── 07_armonizar_precios.R   # Combines all sources into a single table
+│       ├── 08_generar_anuncios.R    # Generates the individual listings the app uses
+│       └── run_pipeline.R           # Orchestrator: Rscript scripts/ingesta/run_pipeline.R
+├── data/raw/
+│   └── anclas_manuales.csv        # Hand-documented prices (cities without an official source)
 ├── reporte_plantilla.Rmd          # R Markdown template used by the Executive Report module
 ├── tests/
 │   ├── testthat.R                 # Standard testthat runner for the package

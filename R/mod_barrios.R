@@ -9,8 +9,9 @@ barriosUI <- function(id) {
         title = tagList(icon("city"), " Selección de Territorio"),
         width = 12, status = "primary", solidHeader = TRUE,
         fluidRow(
-          column(4, selectInput(ns("ciudad_sel"), "Selecciona Ciudad:", choices = c("Madrid", "Barcelona", "Valencia", "Sevilla", "Bilbao"))),
-          column(8, p("Este módulo analiza la dispersión de precios, valor medio del m² y oferta disponible por distrito o barrio dentro de la ciudad seleccionada."))
+          column(4, selectInput(ns("ciudad_sel"), "Selecciona Ciudad:", choices = NULL)),
+          column(4, sliderInput(ns("top_n_barrios"), "Nº de barrios a mostrar en los gráficos:", min = 5, max = 15, value = 15, step = 1)),
+          column(4, p("Este módulo analiza la dispersión de precios, valor medio del m² y oferta disponible por distrito o barrio dentro de la ciudad seleccionada. Con ciudades que tienen muchos barrios, los gráficos muestran solo los más relevantes (el resto sigue disponible en la tabla)."))
         )
       )
     ),
@@ -46,7 +47,13 @@ barriosUI <- function(id) {
 
 barriosServer <- function(id, datos_totales) {
   moduleServer(id, function(input, output, session) {
-    
+
+    # Ciudades disponibles según el dataset cargado (no hardcodeadas).
+    observeEvent(datos_totales, {
+      req(datos_totales)
+      updateSelectInput(session, "ciudad_sel", choices = sort(unique(datos_totales$ciudad)))
+    }, once = TRUE)
+
     # Preparación de datos (con generación al vuelo si faltan los barrios)
     df_procesado <- reactive({
       df <- datos_totales
@@ -79,6 +86,30 @@ barriosServer <- function(id, datos_totales) {
       req(input$ciudad_sel)
       df <- df_procesado()
       df[df$ciudad == input$ciudad_sel & !is.na(df$barrio), ]
+    })
+
+    # Ajustar el rango del slider "Nº de barrios" al nº real de barrios de la
+    # ciudad seleccionada (algunas ciudades tienen 70+ barrios y otras solo 4-5).
+    observeEvent(input$ciudad_sel, {
+      df <- df_ciudad()
+      n_barrios <- length(unique(df$barrio))
+      req(n_barrios > 0)
+      updateSliderInput(
+        session, "top_n_barrios",
+        max = n_barrios,
+        value = min(15, n_barrios)
+      )
+    })
+
+    # Barrios a representar en los gráficos: los N con mayor precio/m² medio,
+    # para no saturar el gráfico cuando la ciudad tiene muchos barrios (el
+    # detalle completo sigue disponible en la tabla de abajo).
+    barrios_a_mostrar <- reactive({
+      df <- df_ciudad()
+      req(df, nrow(df) > 0, input$top_n_barrios)
+      agg <- aggregate(precio_m2 ~ barrio, data = df, FUN = mean)
+      agg <- agg[order(-agg$precio_m2), ]
+      utils::head(agg$barrio, input$top_n_barrios)
     })
     
     # KPIs
@@ -124,34 +155,38 @@ barriosServer <- function(id, datos_totales) {
       )
     })
     
-    # Gráfico de Barras
+    # Gráfico de Barras (solo los N barrios más caros, ver barrios_a_mostrar())
     output$grafico_barras_m2 <- renderPlotly({
       df <- df_ciudad()
       req(df, nrow(df) > 0)
-      
+
       agg <- aggregate(precio_m2 ~ barrio, data = df, FUN = function(x) round(mean(x), 1))
+      agg <- agg[agg$barrio %in% barrios_a_mostrar(), ]
       agg <- agg[order(-agg$precio_m2), ]
-      
+
       p <- ggplot(agg, aes(x = reorder(barrio, precio_m2), y = precio_m2, fill = barrio)) +
         geom_col(show.legend = FALSE) +
         coord_flip() +
         theme_minimal() +
         labs(x = "", y = "Precio / m² (€)")
-      
+
       ggplotly(p)
     })
-    
-    # Gráfico BoxPlot
+
+    # Gráfico BoxPlot (mismos barrios que el gráfico de barras, para que ambos
+    # cuenten la misma historia y no se amontonen las categorías del eje X)
     output$grafico_boxplot_barrios <- renderPlotly({
       df <- df_ciudad()
       req(df, nrow(df) > 0)
-      
-      p <- ggplot(df, aes(x = barrio, y = precio, fill = barrio)) +
-        geom_boxplot(show.legend = FALSE, alpha = 0.7) +
+
+      df_top <- df[df$barrio %in% barrios_a_mostrar(), ]
+
+      p <- ggplot(df_top, aes(x = reorder(barrio, precio, FUN = median), y = precio, fill = barrio)) +
+        geom_boxplot(show.legend = FALSE, alpha = 0.7, outlier.size = 1) +
+        coord_flip() +
         theme_minimal() +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "Precio Total (€)")
-      
+
       ggplotly(p)
     })
     

@@ -12,15 +12,11 @@ comparadorUI <- function(id) {
         status = "primary", 
         solidHeader = TRUE,
         fluidRow(
-          column(6, 
-            selectInput(ns("ciudad_a"), "Selecciona Ciudad / Opción A:", 
-                        choices = c("Madrid", "Barcelona", "Valencia", "Sevilla", "Bilbao"), 
-                        selected = "Madrid")
+          column(6,
+            selectInput(ns("ciudad_a"), "Selecciona Ciudad / Opción A:", choices = NULL)
           ),
-          column(6, 
-            selectInput(ns("ciudad_b"), "Selecciona Ciudad / Opción B:", 
-                        choices = c("Madrid", "Barcelona", "Valencia", "Sevilla", "Bilbao"), 
-                        selected = "Barcelona")
+          column(6,
+            selectInput(ns("ciudad_b"), "Selecciona Ciudad / Opción B:", choices = NULL)
           )
         )
       )
@@ -59,7 +55,15 @@ comparadorUI <- function(id) {
 # 2. SERVER DEL MÓDULO
 comparadorServer <- function(id, datos_totales) {
   moduleServer(id, function(input, output, session) {
-    
+
+    # Ciudades disponibles según el dataset cargado (no hardcodeadas).
+    observeEvent(datos_totales, {
+      req(datos_totales)
+      ciudades_opt <- sort(unique(datos_totales$ciudad))
+      updateSelectInput(session, "ciudad_a", choices = ciudades_opt, selected = ciudades_opt[1])
+      updateSelectInput(session, "ciudad_b", choices = ciudades_opt, selected = ciudades_opt[min(2, length(ciudades_opt))])
+    }, once = TRUE)
+
     # Titulos dinámicos
     output$titulo_a <- renderUI({ HTML(paste0("<b>Análisis: ", input$ciudad_a, "</b>")) })
     output$titulo_b <- renderUI({ HTML(paste0("<b>Análisis: ", input$ciudad_b, "</b>")) })

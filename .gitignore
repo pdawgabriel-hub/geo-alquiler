@@ -2,9 +2,17 @@
 .Rhistory
 .RData
 .Ruserdata
+.claude/
 # Archivos de datos procesados/binarios
 data/processed/*.rds
 *.rds
+
+# Caché de descargas del pipeline de ingesta (scripts/ingesta/): ficheros
+# reproducibles a partir de las fuentes originales, no se versionan.
+# anclas_manuales.csv SÍ se versiona (es dato mantenido a mano, no caché).
+data/raw/*.xlsx
+data/raw/*.csv
+!data/raw/anclas_manuales.csv
 
 # Renderizados temporales de HTML/PDF
 *.html

@@ -8,7 +8,7 @@ prediccionUI <- function(id) {
       box(
         title = tagList(icon("sliders-h"), " Configura las características del inmueble"),
         width = 4, status = "primary", solidHeader = TRUE,
-        selectInput(ns("ciudad"), "Ciudad:", choices = c("Madrid", "Barcelona", "Valencia", "Sevilla", "Bilbao")),
+        selectInput(ns("ciudad"), "Ciudad:", choices = NULL),
         uiOutput(ns("selector_barrio")),
         selectInput(ns("tipo"), "Tipo de Vivienda:", choices = c("Piso", "Apartamento", "Ático", "Estudio", "Casa / Chalet")),
         sliderInput(ns("superficie"), "Superficie (m²):", min = 30, max = 250, value = 75, step = 5),
@@ -30,7 +30,15 @@ prediccionUI <- function(id) {
 
 prediccionServer <- function(id, datos_totales) {
   moduleServer(id, function(input, output, session) {
-    
+
+    # Ciudades disponibles según el dataset cargado (no hardcodeadas, así
+    # una ciudad nueva -p.ej. Murcia o San Javier- aparece sola al añadirse
+    # al pipeline de datos, sin tocar este módulo).
+    observeEvent(datos_totales, {
+      req(datos_totales)
+      updateSelectInput(session, "ciudad", choices = sort(unique(datos_totales$ciudad)))
+    }, once = TRUE)
+
     # Barrio dinámico según ciudad seleccionada
     output$selector_barrio <- renderUI({
       req(input$ciudad)
@@ -44,13 +52,20 @@ prediccionServer <- function(id, datos_totales) {
     modelo_fit <- reactive({
       df <- datos_totales
       req(nrow(df) > 10)
-      
-      # Si el dataset no tiene habitaciones aún, entrena un modelo simplificado
-      if ("habitaciones" %in% names(df) && "banos" %in% names(df)) {
-        lm(precio ~ superficie + habitaciones + banos + factor(ciudad) + factor(tipo), data = df)
-      } else {
-        lm(precio ~ superficie + factor(ciudad) + factor(tipo), data = df)
-      }
+
+      # lm() no admite factor(x) si x solo tiene 1 nivel ("contrasts can be
+      # applied only to factors with 2 or more levels") -- pasa, por ejemplo,
+      # al entrenar con datos de una única ciudad. Construimos la fórmula
+      # dinámicamente, dejando fuera los predictores categóricos que no
+      # aporten al menos 2 niveles con los datos actuales.
+      terminos <- c("superficie")
+      if ("habitaciones" %in% names(df)) terminos <- c(terminos, "habitaciones")
+      if ("banos" %in% names(df)) terminos <- c(terminos, "banos")
+      if ("ciudad" %in% names(df) && length(unique(df$ciudad)) >= 2) terminos <- c(terminos, "factor(ciudad)")
+      if ("tipo" %in% names(df) && length(unique(df$tipo)) >= 2) terminos <- c(terminos, "factor(tipo)")
+
+      formula_modelo <- stats::as.formula(paste("precio ~", paste(terminos, collapse = " + ")))
+      lm(formula_modelo, data = df)
     })
     
     prediccion_res <- eventReactive(input$btn_predecir, {
@@ -101,11 +116,19 @@ prediccionServer <- function(id, datos_totales) {
     output$grafico_comparativo_ml <- renderPlotly({
       res <- prediccion_res()
       req(res, input$ciudad)
-      
+
       df_c <- datos_totales[datos_totales$ciudad == input$ciudad, ]
-      
+
+      # df_c solo se usa como referencia visual de fondo -- con ciudades que
+      # tienen miles de inmuebles (Barcelona, Bilbao) pintarlos todos satura
+      # el gráfico sin aportar nada más que una muestra ya representativa.
+      if (nrow(df_c) > 500) {
+        set.seed(1)
+        df_c <- df_c[sample(nrow(df_c), 500), ]
+      }
+
       p <- ggplot(df_c, aes(x = superficie, y = precio)) +
-        geom_point(alpha = 0.3, color = "gray") +
+        geom_point(alpha = 0.2, size = 1.4, color = "gray40") +
         geom_point(data = data.frame(superficie = input$superficie, precio = res$estimado), 
            aes(x = superficie, y = precio), color = "red", size = 4) +
         geom_errorbar(aes(x = input$superficie, ymin = res$min_90, ymax = res$max_90), color = "red", width = 5) +

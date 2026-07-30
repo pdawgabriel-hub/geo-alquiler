@@ -84,7 +84,7 @@ estadisticaServer <- function(id, datos_visibles) {
       if (nrow(df) == 0) return(NULL)
       
       p <- ggplot(df, aes(x = ciudad, y = precio, fill = ciudad)) +
-        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16) +
+        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16, outlier.size = 0.8, outlier.alpha = 0.4) +
         theme_minimal() +
         theme(legend.position = "none") +
         labs(x = "", y = "Precio (€)")
@@ -98,7 +98,7 @@ estadisticaServer <- function(id, datos_visibles) {
       if (nrow(df) == 0) return(NULL)
       
       p <- ggplot(df, aes(x = tipo, y = precio, fill = tipo)) +
-        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16) +
+        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16, outlier.size = 0.8, outlier.alpha = 0.4) +
         theme_minimal() +
         theme(legend.position = "none") +
         labs(x = "", y = "Precio (€)")

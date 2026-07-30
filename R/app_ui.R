@@ -134,7 +134,9 @@ app_ui <- function(request) {
                 title = "Sobre el Proyecto GeoAlquiler", 
                 width = 12, status = "primary", solidHeader = TRUE,
                 h3("Inteligencia Inmobiliaria y Análisis Espacial"),
-                p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres. Todos los datos son fictios. ")
+                p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres."),
+                p(strong("Fuente de los datos: "), "el precio por m² de cada zona procede de fuentes oficiales (SERPAVI del Ministerio de Vivienda, y los portales de datos abiertos de los ayuntamientos de Barcelona y Valencia). Los anuncios individuales que se muestran en el mapa son una ilustración de ese dato real, generada dentro de cada zona geolocalizada."),
+                p(strong("Zonas marcadas como estimación: "), "en localidades donde no existe ninguna fuente oficial desagregada, el precio se fija a mano a partir de índices públicos y se revisa periódicamente; estos casos se señalan como estimados y no deben tratarse con la misma confianza que un dato oficial.")
               )
             )
           )

@@ -54,20 +54,41 @@ graficosServer <- function(id, datos_reactivos) {
     })
     
     # 2. DISPERSIÓN: PRECIO VS SUPERFICIE
+    # Con datasets grandes (miles de inmuebles) un scatter "normal" satura el
+    # gráfico de puntos solapados. Se reduce tamaño/opacidad para que se
+    # aprecie la densidad en vez de una mancha sólida, y si hay muchísimos
+    # puntos se muestra una muestra aleatoria (mismo patrón visual, más ligero
+    # y legible) dejando claro en el título cuántos se están representando.
+    LIMITE_PUNTOS_DISPERSION <- 800
+
     output$grafico_dispersion <- renderPlotly({
       df <- datos_reactivos()
       if (nrow(df) == 0) return(NULL)
-      
-      p <- ggplot(df, aes(x = superficie, y = precio, color = tipo, text = paste0(
+
+      df_plot <- df
+      submuestreado <- nrow(df) > LIMITE_PUNTOS_DISPERSION
+      if (submuestreado) {
+        set.seed(1)
+        df_plot <- df[sample(nrow(df), LIMITE_PUNTOS_DISPERSION), ]
+      }
+
+      p <- ggplot(df_plot, aes(x = superficie, y = precio, color = tipo, text = paste0(
         "<b>", tipo, " en ", ciudad, "</b><br>",
         "Precio: ", precio, " €<br>",
         "Superficie: ", superficie, " m²"
       ))) +
-        geom_point(size = 3, alpha = 0.7) +
+        geom_point(size = 1.6, alpha = 0.35) +
         geom_smooth(method = "lm", se = FALSE, color = "#e74c3c", linetype = "dashed") +
         theme_minimal() +
-        labs(x = "Superficie (m²)", y = "Precio (€)", color = "Tipo")
-      
+        labs(
+          x = "Superficie (m²)", y = "Precio (€)", color = "Tipo",
+          subtitle = if (submuestreado) {
+            paste0("Muestra aleatoria de ", LIMITE_PUNTOS_DISPERSION, " de ", nrow(df), " inmuebles visibles")
+          } else {
+            NULL
+          }
+        )
+
       ggplotly(p, tooltip = "text")
     })
     
