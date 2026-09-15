@@ -149,13 +149,21 @@ oportunidadesServer <- function(id, datos_visibles) {
             "<b>Descuento vs. media:</b> -", round(df$pct_diferencia, 1), "%"
           )
           
+          # Con el umbral por defecto puede haber >1000 oportunidades; sin
+          # agrupar (clustering) eso son >1000 marcadores individuales que
+          # el navegador tiene que construir y pintar de golpe, muy pesado
+          # en móvil.
           m <- m %>% addCircleMarkers(
             lng = as.numeric(longitudes),
             lat = as.numeric(latitudes),
             radius = 7,
             color = "#e67e22",
             fillOpacity = 0.8,
-            popup = popups
+            popup = popups,
+            clusterOptions = markerClusterOptions(
+              showCoverageOnHover = FALSE,
+              zoomToBoundsOnClick = TRUE
+            )
           )
         }
       }
