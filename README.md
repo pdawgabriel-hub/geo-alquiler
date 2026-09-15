@@ -20,6 +20,7 @@
   - [1. Exploración Espacial](#exploracion-espacial)
   - [2. Analítica & Machine Learning](#analitica-ml)
   - [3. Herramientas de Inversión](#herramientas-inversion)
+- [Rendimiento y Diseño Responsive](#rendimiento-responsive)
 - [Capturas de Pantalla](#capturas-pantalla)
 - [Estructura del Proyecto (`{golem}`)](#estructura-proyecto)
 - [Fuente de los Datos](#fuente-datos)
@@ -97,6 +98,26 @@ La aplicación está organizada en tres bloques funcionales, reflejados directam
 
 ---
 
+<a id="rendimiento-responsive"></a>
+## Rendimiento y Diseño Responsive
+
+GeoAlquiler está pensado para usarse tanto en escritorio como en el móvil, no solo para adaptarse visualmente sino para cargar rápido con conexiones más lentas. Esto se traduce en decisiones concretas de arquitectura, no solo en CSS:
+
+| Optimización | Qué resuelve |
+|---|---|
+| **Gráficos con `plotly` nativo (no `ggplotly()`)** | Los 10 gráficos interactivos de la app se construyen directamente con `plot_ly()`/`add_trace()` en vez de convertir un `ggplot2` con `ggplotly()`, que genera un payload JSON notablemente más pesado para el mismo gráfico. |
+| **Histogramas pre-agregados en el servidor** | Los histogramas calculan los bins en R con `hist()` y envían solo las barras ya agregadas, en vez de mandar cada precio en crudo al navegador para que los calcule `type = "histogram"` de Plotly. |
+| **Submuestreo transparente en gráficos densos** | El scatter de precio/superficie y los boxplots de Estadística Avanzada limitan cuántos puntos viajan al navegador (con una muestra aleatoria y un aviso visible de cuántos se están representando) cuando el conjunto filtrado es muy grande. |
+| **Mapa agregado por barrio en servidor** | La capa por defecto del mapa no manda cada inmueble individual, sino un resumen por barrio (precio medio + nº de inmuebles) calculado en R — una reducción de miles de puntos a un par de cientos. Los pines individuales y el mapa de calor se cargan bajo demanda (`leafletProxy`) solo si el usuario activa esa capa. |
+| **Clustering en mapas con muchos marcadores** | El mapa de Oportunidades agrupa (`markerClusterOptions`) los marcadores en vez de pintarlos todos sueltos, evitando que un umbral poco restrictivo (cientos de resultados) sature el navegador. |
+| **CSS responsive propio** (`inst/app/www/custom.css`) | Ajusta a distintos anchos de pantalla las alturas de los widgets de Leaflet/Plotly (fijas en píxeles por defecto), el control de capas del mapa y los controles de `DT`, con `scrollX` activado en todas las tablas para que las columnas que no caben se puedan desplazar en vez de quedar cortadas. |
+| **JS mínimo para UX móvil** (`inst/app/www/custom.js`) | El sidebar de `shinydashboard` se cierra automáticamente al navegar a una pestaña en pantallas estrechas, en vez de quedarse superpuesto tapando el contenido. |
+| **Mapas base sin clave de API** | Usa OpenStreetMap como capa base por defecto (los mapas Positron/DarkMatter de CartoDB ahora exigen API key en su plan gratuito). |
+
+[⬆ Volver arriba](#top)
+
+---
+
 <a id="capturas-pantalla"></a>
 ## Capturas de Pantalla
 
@@ -163,7 +184,8 @@ geo-alquiler/
 │   └── mod_reporte.R        # Módulo: informe ejecutivo descargable
 ├── inst/
 │   └── app/
-│       └── data/           # Datos empaquetados con la app (p. ej. alquileres.parquet)
+│       ├── data/           # Datos empaquetados con la app (p. ej. alquileres.parquet)
+│       └── www/            # CSS/JS responsive (custom.css, custom.js) -- ver "Rendimiento y Diseño Responsive"
 ├── man/
 │   └── figures/            # Capturas de pantalla usadas en este README
 ├── data/
@@ -540,10 +562,10 @@ Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado
 
 Este proyecto se publica como **pieza de portfolio personal** y tiene una licencia de uso restringido. En detalle:
 
-- ✅ Puedes **ver, clonar y ejecutar** el código con fines de **aprendizaje, evaluación técnica o revisión de portfolio** (por ejemplo, como parte de un proceso de selección o para estudiar la arquitectura del proyecto).
-- ✅ Puedes **modificar el código para uso personal, no comercial**, siempre citando la autoría original.
-- ❌ **No está permitido el uso comercial** del proyecto, ni total ni parcial (incluyendo su despliegue como producto o servicio, su reventa, o su integración en soluciones comerciales de terceros) sin autorización expresa del autor.
-- 👤 **El único titular con derecho a explotación comercial del proyecto es el autor original**, [Gabriel](https://github.com/pdawgabriel-hub) (autor y desarrollador de GeoAlquiler).
+- Puedes **ver, clonar y ejecutar** el código con fines de **aprendizaje, evaluación técnica o revisión de portfolio** (por ejemplo, como parte de un proceso de selección o para estudiar la arquitectura del proyecto).
+- Puedes **modificar el código para uso personal, no comercial**, siempre citando la autoría original.
+- **No está permitido el uso comercial** del proyecto, ni total ni parcial (incluyendo su despliegue como producto o servicio, su reventa, o su integración en soluciones comerciales de terceros) sin autorización expresa del autor.
+- **El único titular con derecho a explotación comercial del proyecto es el autor original**, [Gabriel](https://github.com/pdawgabriel-hub) (autor y desarrollador de GeoAlquiler).
 
 El texto legal completo se encuentra en el archivo [`LICENSE.md`](./LICENSE.md) (versión en inglés: [`LICENSE.en.md`](./LICENSE.en.md)).
 

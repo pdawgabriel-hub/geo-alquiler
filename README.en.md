@@ -20,6 +20,7 @@
   - [1. Spatial Exploration](#spatial-exploration)
   - [2. Analytics & Machine Learning](#analytics-ml)
   - [3. Investment Tools](#investment-tools)
+- [Performance & Responsive Design](#performance-responsive)
 - [Screenshots](#screenshots)
 - [Project Structure (`{golem}`)](#project-structure)
 - [Data Source](#data-source)
@@ -97,6 +98,26 @@ The application is organized into three functional blocks, directly reflected in
 
 ---
 
+<a id="performance-responsive"></a>
+## Performance & Responsive Design
+
+GeoAlquiler is meant to be used on both desktop and mobile — not just adapting visually, but loading fast on slower connections. That comes down to concrete architecture decisions, not just CSS:
+
+| Optimization | What it solves |
+|---|---|
+| **Native `plotly` charts (not `ggplotly()`)** | All 10 interactive charts are built directly with `plot_ly()`/`add_trace()` instead of converting a `ggplot2` object via `ggplotly()`, which produces a noticeably heavier JSON payload for the same chart. |
+| **Server-side pre-binned histograms** | Histograms compute their bins in R with `hist()` and send only the already-aggregated bars, instead of sending every raw price to the browser for Plotly's `type = "histogram"` to bin client-side. |
+| **Transparent subsampling on dense charts** | The price/surface scatter plot and the Estadística Avanzada boxplots cap how many points travel to the browser (a random sample with a visible note of how many are being shown) when the filtered dataset is very large. |
+| **Server-side, per-neighborhood map aggregation** | The map's default layer doesn't send every individual listing — it sends a per-neighborhood summary (average price + listing count) computed in R, cutting thousands of points down to a couple hundred. Individual pins and the heatmap load on demand (`leafletProxy`) only if the user turns that layer on. |
+| **Clustering on marker-heavy maps** | The Opportunities map clusters (`markerClusterOptions`) its markers instead of drawing them all individually, so a loose threshold (hundreds of matches) doesn't overwhelm the browser. |
+| **Custom responsive CSS** (`inst/app/www/custom.css`) | Adjusts the (otherwise fixed-pixel) heights of the Leaflet/Plotly widgets, the map's layer control, and the `DT` table controls across screen widths, with `scrollX` enabled on every table so columns that don't fit can be scrolled instead of being cut off. |
+| **Minimal JS for mobile UX** (`inst/app/www/custom.js`) | The shinydashboard sidebar closes itself automatically after navigating to a tab on narrow screens, instead of staying open on top of the content. |
+| **API-key-free base maps** | Uses OpenStreetMap as the default base layer (CartoDB's Positron/DarkMatter maps now require an API key on their free tier). |
+
+[⬆ Back to top](#top)
+
+---
+
 <a id="screenshots"></a>
 ## Screenshots
 
@@ -163,7 +184,8 @@ geo-alquiler/
 │   └── mod_reporte.R        # Module: downloadable executive report
 ├── inst/
 │   └── app/
-│       └── data/           # Data bundled with the app (e.g. alquileres.parquet)
+│       ├── data/           # Data bundled with the app (e.g. alquileres.parquet)
+│       └── www/            # Responsive CSS/JS (custom.css, custom.js) -- see "Performance & Responsive Design"
 ├── man/
 │   └── figures/            # Screenshots used in this README
 ├── data/
@@ -540,10 +562,10 @@ Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the 
 
 This project is published as a **personal portfolio piece** and carries a restricted-use license. Specifically:
 
-- ✅ You **may view, clone, and run** the code for **learning, technical evaluation, or portfolio review purposes** (for example, as part of a hiring process or to study the project's architecture).
-- ✅ You **may modify and run copies of the code for personal, non-commercial use**, always crediting the original authorship.
-- ❌ **Commercial use of the project is not permitted**, in whole or in part (including deploying it as a product or service, reselling it, or integrating it into third-party commercial solutions) without the author's express authorization.
-- 👤 **The sole rights-holder entitled to commercially exploit the project is the original author**, [Gabriel](https://github.com/pdawgabriel-hub) (author and developer of GeoAlquiler).
+- You **may view, clone, and run** the code for **learning, technical evaluation, or portfolio review purposes** (for example, as part of a hiring process or to study the project's architecture).
+- You **may modify and run copies of the code for personal, non-commercial use**, always crediting the original authorship.
+- **Commercial use of the project is not permitted**, in whole or in part (including deploying it as a product or service, reselling it, or integrating it into third-party commercial solutions) without the author's express authorization.
+- **The sole rights-holder entitled to commercially exploit the project is the original author**, [Gabriel](https://github.com/pdawgabriel-hub) (author and developer of GeoAlquiler).
 
 The full legal text can be found in the [`LICENSE.en.md`](./LICENSE.en.md) file (Spanish version: [`LICENSE.md`](./LICENSE.md)).
 
