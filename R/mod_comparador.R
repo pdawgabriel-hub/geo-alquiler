@@ -91,12 +91,15 @@ comparadorServer <- function(id, datos_totales) {
       valueBox(paste0(pm2, " €/m²"), "Precio/m² A", icon = icon("calculator"), color = "light-blue")
     })
     
+    # Bins calculados en el servidor con hist() (no type="histogram", que
+    # calcularía los bins en el navegador a partir de los precios en crudo).
     output$hist_a <- renderPlotly({
       df <- datos_a()
       if (nrow(df) == 0) return(NULL)
-      plot_ly(df, x = ~precio, type = "histogram", nbinsx = 10,
+      h <- hist(df$precio, breaks = 10, plot = FALSE)
+      plot_ly(x = h$mids, y = h$counts, type = "bar",
               marker = list(color = "#3c8dbc", line = list(color = "white", width = 1))) %>%
-        layout(xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
+        layout(bargap = 0, xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
     })
     
     # --- MÉTRICAS Y GRÁFICOS OPCIÓN B ---
@@ -115,9 +118,10 @@ comparadorServer <- function(id, datos_totales) {
     output$hist_b <- renderPlotly({
       df <- datos_b()
       if (nrow(df) == 0) return(NULL)
-      plot_ly(df, x = ~precio, type = "histogram", nbinsx = 10,
+      h <- hist(df$precio, breaks = 10, plot = FALSE)
+      plot_ly(x = h$mids, y = h$counts, type = "bar",
               marker = list(color = "#00a65a", line = list(color = "white", width = 1))) %>%
-        layout(xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
+        layout(bargap = 0, xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
     })
     
   })

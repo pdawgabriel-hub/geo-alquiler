@@ -41,13 +41,20 @@ graficosServer <- function(id, datos_reactivos) {
   moduleServer(id, function(input, output, session) {
     
     # 1. HISTOGRAMA DE PRECIOS
+    # type = "histogram" calcula los bins EN EL NAVEGADOR, lo que obliga a
+    # mandar cada precio en crudo (miles de valores) al cliente -- pesado en
+    # móvil. Se calculan los bins en el servidor con hist() y se manda ya
+    # agregado como barras, igual que hacía ggplot2::geom_histogram() antes.
     output$grafico_precios <- renderPlotly({
       df <- datos_reactivos()
       if (nrow(df) == 0) return(NULL)
 
-      plot_ly(df, x = ~precio, type = "histogram", nbinsx = 12,
+      h <- hist(df$precio, breaks = 12, plot = FALSE)
+
+      plot_ly(x = h$mids, y = h$counts, type = "bar",
               marker = list(color = "#3c8dbc", line = list(color = "white", width = 1))) %>%
         layout(
+          bargap = 0,
           xaxis = list(title = "Precio (€)"),
           yaxis = list(title = "Cantidad de Inmuebles")
         )
