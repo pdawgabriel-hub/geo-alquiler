@@ -94,10 +94,9 @@ comparadorServer <- function(id, datos_totales) {
     output$hist_a <- renderPlotly({
       df <- datos_a()
       if (nrow(df) == 0) return(NULL)
-      p <- ggplot(df, aes(x = precio)) + 
-        geom_histogram(fill = "#3c8dbc", color = "white", bins = 10) +
-        theme_minimal() + labs(x = "Precio (€)", y = "Inmuebles")
-      ggplotly(p)
+      plot_ly(df, x = ~precio, type = "histogram", nbinsx = 10,
+              marker = list(color = "#3c8dbc", line = list(color = "white", width = 1))) %>%
+        layout(xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
     })
     
     # --- MÉTRICAS Y GRÁFICOS OPCIÓN B ---
@@ -116,10 +115,9 @@ comparadorServer <- function(id, datos_totales) {
     output$hist_b <- renderPlotly({
       df <- datos_b()
       if (nrow(df) == 0) return(NULL)
-      p <- ggplot(df, aes(x = precio)) + 
-        geom_histogram(fill = "#00a65a", color = "white", bins = 10) +
-        theme_minimal() + labs(x = "Precio (€)", y = "Inmuebles")
-      ggplotly(p)
+      plot_ly(df, x = ~precio, type = "histogram", nbinsx = 10,
+              marker = list(color = "#00a65a", line = list(color = "white", width = 1))) %>%
+        layout(xaxis = list(title = "Precio (€)"), yaxis = list(title = "Inmuebles"))
     })
     
   })

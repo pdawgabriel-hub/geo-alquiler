@@ -127,18 +127,31 @@ prediccionServer <- function(id, datos_totales) {
         df_c <- df_c[sample(nrow(df_c), 500), ]
       }
 
-      p <- ggplot(df_c, aes(x = superficie, y = precio)) +
-        geom_point(alpha = 0.2, size = 1.4, color = "gray40") +
-        geom_point(data = data.frame(superficie = input$superficie, precio = res$estimado), 
-           aes(x = superficie, y = precio), color = "red", size = 4) +
-        geom_errorbar(aes(x = input$superficie, ymin = res$min_90, ymax = res$max_90), color = "red", width = 5) +
-        theme_minimal() +
-        labs(
-          title = paste("Tu estimación (Punto Rojo) vs Inmuebles en", input$ciudad),
-          x = "Superficie (m²)", y = "Precio (€)"
+      plot_ly() %>%
+        add_trace(
+          data = df_c, x = ~superficie, y = ~precio,
+          type = "scatter", mode = "markers",
+          marker = list(color = "gray40", opacity = 0.2, size = 7),
+          name = "Inmuebles", hoverinfo = "x+y"
+        ) %>%
+        add_trace(
+          x = input$superficie, y = res$estimado,
+          type = "scatter", mode = "markers",
+          marker = list(color = "red", size = 12),
+          error_y = list(
+            type = "data", symmetric = FALSE,
+            array = res$max_90 - res$estimado,
+            arrayminus = res$estimado - res$min_90,
+            color = "red", width = 5
+          ),
+          name = "Tu estimación", hoverinfo = "y"
+        ) %>%
+        layout(
+          title = list(text = paste("Tu estimación (Punto Rojo) vs Inmuebles en", input$ciudad), font = list(size = 13)),
+          xaxis = list(title = "Superficie (m²)"),
+          yaxis = list(title = "Precio (€)"),
+          showlegend = FALSE
         )
-      
-      ggplotly(p)
     })
     
   })

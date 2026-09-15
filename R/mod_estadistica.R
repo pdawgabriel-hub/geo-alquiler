@@ -82,28 +82,26 @@ estadisticaServer <- function(id, datos_visibles) {
     output$boxplot_ciudad <- renderPlotly({
       df <- datos_visibles()
       if (nrow(df) == 0) return(NULL)
-      
-      p <- ggplot(df, aes(x = ciudad, y = precio, fill = ciudad)) +
-        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16, outlier.size = 0.8, outlier.alpha = 0.4) +
-        theme_minimal() +
-        theme(legend.position = "none") +
-        labs(x = "", y = "Precio (€)")
-      
-      ggplotly(p)
+
+      plot_ly(
+        df, x = ~ciudad, y = ~precio, type = "box", color = ~ciudad,
+        boxpoints = "outliers", marker = list(color = "red", opacity = 0.4, size = 4),
+        showlegend = FALSE
+      ) %>%
+        layout(xaxis = list(title = ""), yaxis = list(title = "Precio (€)"))
     })
-    
+
     # --- BOXPLOT POR TIPO ---
     output$boxplot_tipo <- renderPlotly({
       df <- datos_visibles()
       if (nrow(df) == 0) return(NULL)
-      
-      p <- ggplot(df, aes(x = tipo, y = precio, fill = tipo)) +
-        geom_boxplot(alpha = 0.7, outlier.color = "red", outlier.shape = 16, outlier.size = 0.8, outlier.alpha = 0.4) +
-        theme_minimal() +
-        theme(legend.position = "none") +
-        labs(x = "", y = "Precio (€)")
-      
-      ggplotly(p)
+
+      plot_ly(
+        df, x = ~tipo, y = ~precio, type = "box", color = ~tipo,
+        boxpoints = "outliers", marker = list(color = "red", opacity = 0.4, size = 4),
+        showlegend = FALSE
+      ) %>%
+        layout(xaxis = list(title = ""), yaxis = list(title = "Precio (€)"))
     })
     
     # --- TABLA DE PERCENTILES ---

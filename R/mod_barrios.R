@@ -162,15 +162,14 @@ barriosServer <- function(id, datos_totales) {
 
       agg <- aggregate(precio_m2 ~ barrio, data = df, FUN = function(x) round(mean(x), 1))
       agg <- agg[agg$barrio %in% barrios_a_mostrar(), ]
-      agg <- agg[order(-agg$precio_m2), ]
+      agg <- agg[order(agg$precio_m2), ]
+      agg$barrio <- factor(agg$barrio, levels = agg$barrio)
 
-      p <- ggplot(agg, aes(x = reorder(barrio, precio_m2), y = precio_m2, fill = barrio)) +
-        geom_col(show.legend = FALSE) +
-        coord_flip() +
-        theme_minimal() +
-        labs(x = "", y = "Precio / m² (€)")
-
-      ggplotly(p)
+      plot_ly(
+        agg, x = ~precio_m2, y = ~barrio, type = "bar", orientation = "h",
+        color = ~barrio, showlegend = FALSE
+      ) %>%
+        layout(xaxis = list(title = "Precio / m² (€)"), yaxis = list(title = ""))
     })
 
     # Gráfico BoxPlot (mismos barrios que el gráfico de barras, para que ambos
@@ -181,13 +180,14 @@ barriosServer <- function(id, datos_totales) {
 
       df_top <- df[df$barrio %in% barrios_a_mostrar(), ]
 
-      p <- ggplot(df_top, aes(x = reorder(barrio, precio, FUN = median), y = precio, fill = barrio)) +
-        geom_boxplot(show.legend = FALSE, alpha = 0.7, outlier.size = 1) +
-        coord_flip() +
-        theme_minimal() +
-        labs(x = "", y = "Precio Total (€)")
+      orden_barrios <- names(sort(tapply(df_top$precio, df_top$barrio, median)))
+      df_top$barrio <- factor(df_top$barrio, levels = orden_barrios)
 
-      ggplotly(p)
+      plot_ly(
+        df_top, x = ~precio, y = ~barrio, type = "box", orientation = "h",
+        color = ~barrio, marker = list(size = 4), showlegend = FALSE
+      ) %>%
+        layout(xaxis = list(title = "Precio Total (€)"), yaxis = list(title = ""))
     })
     
     # Tabla Resumen DT
