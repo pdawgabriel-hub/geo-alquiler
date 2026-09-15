@@ -207,7 +207,7 @@ barriosServer <- function(id, datos_totales) {
       datatable(
         tabla_df,
         colnames = c("Barrio / Distrito", "Oferta (Unid.)", "Precio Medio (€)", "Precio Mediana (€)", "Superficie Media (m²)", "Precio/m² (€)"),
-        options = list(pageLength = 6, dom = 't', order = list(5, 'desc')),
+        options = list(pageLength = 6, dom = 't', order = list(5, 'desc'), scrollX = TRUE),
         rownames = FALSE
       )
     })

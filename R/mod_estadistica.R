@@ -133,7 +133,7 @@ estadisticaServer <- function(id, datos_visibles) {
       
       datatable(
         resumen_df,
-        options = list(dom = 't', pageLength = 10),
+        options = list(dom = 't', pageLength = 10, scrollX = TRUE),
         rownames = FALSE
       )
     })

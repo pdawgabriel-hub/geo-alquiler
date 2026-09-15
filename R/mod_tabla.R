@@ -90,6 +90,7 @@ tablaServer <- function(id, datos_reactivos, favoritos_ids = NULL) {
         options = list(
           pageLength = 10,
           lengthMenu = c(5, 10, 25, 50),
+          scrollX = TRUE,
           language = list(
             search = "Buscar:",
             lengthMenu = "Mostrar _MENU_ registros",

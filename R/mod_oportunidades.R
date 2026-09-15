@@ -176,7 +176,7 @@ oportunidadesServer <- function(id, datos_visibles) {
       
       datatable(
         df_sub,
-        options = list(pageLength = 5, dom = 'tp', language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')),
+        options = list(pageLength = 5, dom = 'tp', scrollX = TRUE, language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')),
         rownames = FALSE
       )
     })

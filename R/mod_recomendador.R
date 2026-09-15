@@ -144,7 +144,7 @@ recomendadorServer <- function(id, datos) {
       
       datatable(
         df_sim[, cols_existentes, drop = FALSE],
-        options = list(dom = 't', pageLength = input$top_n),
+        options = list(dom = 't', pageLength = input$top_n, scrollX = TRUE),
         rownames = FALSE
       )
     })
