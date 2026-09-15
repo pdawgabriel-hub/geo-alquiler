@@ -1,0 +1,73 @@
+/* Ajustes responsive para GeoAlquiler sobre shinydashboard (Bootstrap 3).
+   El grid de columnas (col-sm-*) de los box()/valueBoxOutput() ya apila a
+   ancho completo por debajo de 768px de forma nativa; estos ajustes cubren
+   lo que Bootstrap no resuelve solo: alturas fijas en px de los widgets de
+   Leaflet/Plotly, y el tamaño de controles pensados para ratón/desktop. */
+
+.content-wrapper {
+  overflow-x: hidden;
+}
+
+/* leafletOutput()/plotlyOutput() fijan el alto vía style inline en el propio
+   div del widget, por eso el override necesita !important. */
+@media (max-width: 991px) {
+  .leaflet.html-widget {
+    height: 380px !important;
+  }
+
+  .plotly.html-widget {
+    height: 300px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .leaflet.html-widget {
+    height: 300px !important;
+  }
+
+  .plotly.html-widget {
+    height: 260px !important;
+  }
+
+  /* Control de capas de Leaflet: más compacto para no tapar el mapa */
+  .leaflet-control-layers {
+    font-size: 12px;
+  }
+
+  .leaflet-control-layers-toggle {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  /* Controles de DT (buscador, longitud, paginación, info): apilados y con
+     área táctil suficiente en vez de flotar en una sola fila estrecha */
+  .dataTables_wrapper .dataTables_filter,
+  .dataTables_wrapper .dataTables_length,
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate {
+    float: none !important;
+    text-align: left !important;
+    margin-bottom: 8px;
+  }
+
+  .dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 6px 10px !important;
+  }
+
+  /* KPIs (valueBox): que el número no desborde el ancho del box en móvil */
+  .small-box h3 {
+    font-size: 22px;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Botón de colapsar el sidebar: área táctil más cómoda */
+  .sidebar-toggle {
+    padding: 12px 15px;
+  }
+
+  /* Menos padding en las cajas para aprovechar el ancho disponible */
+  .box-body {
+    padding: 10px;
+  }
+}
