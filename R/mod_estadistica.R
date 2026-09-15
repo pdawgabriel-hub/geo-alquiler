@@ -78,9 +78,25 @@ estadisticaServer <- function(id, datos_visibles) {
       valueBox(paste0(val, " €"), "Rango Intercuartílico (IQR)", icon = icon("arrows-left-right"), color = "orange")
     })
     
+    # A diferencia de un bar/histograma pre-agregado, un boxplot interactivo
+    # necesita los valores individuales en el navegador para calcular
+    # cuartiles/outliers -- con miles de inmuebles eso es un payload pesado
+    # en móvil. Se submuestrea igual que ya hace el scatter de Analítica
+    # Visual (mismo patrón, misma app).
+    LIMITE_PUNTOS_BOXPLOT <- 1500
+
+    datos_boxplot <- reactive({
+      df <- datos_visibles()
+      if (nrow(df) > LIMITE_PUNTOS_BOXPLOT) {
+        set.seed(1)
+        df <- df[sample(nrow(df), LIMITE_PUNTOS_BOXPLOT), ]
+      }
+      df
+    })
+
     # --- BOXPLOT POR CIUDAD ---
     output$boxplot_ciudad <- renderPlotly({
-      df <- datos_visibles()
+      df <- datos_boxplot()
       if (nrow(df) == 0) return(NULL)
 
       plot_ly(
@@ -93,7 +109,7 @@ estadisticaServer <- function(id, datos_visibles) {
 
     # --- BOXPLOT POR TIPO ---
     output$boxplot_tipo <- renderPlotly({
-      df <- datos_visibles()
+      df <- datos_boxplot()
       if (nrow(df) == 0) return(NULL)
 
       plot_ly(
