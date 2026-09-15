@@ -168,13 +168,25 @@ mapaServer <- function(id, datos_reactivos) {
       }
     })
 
-    # Devolvemos los datos delimitados espacialmente por el recuadro del mapa
+    # Devolvemos los datos delimitados espacialmente por el recuadro del mapa.
+    # OJO: este resultado alimenta también Explorador de Datos, Analítica
+    # Visual, Estadística Avanzada y Oportunidades (todas reciben
+    # "datos_visibles" desde app_server.R) -- un encuadre inválido aquí
+    # vacía esas 4 pantallas a la vez, aunque no muestren el mapa.
     datos_en_pantalla <- reactive({
       df <- datos_reactivos()
       bounds <- input$mapa_alquiler_bounds
 
-      # Si el usuario aún no ha movido o cargado los límites, mostramos todos los datos
-      if (is.null(bounds) || is.null(df) || nrow(df) == 0) return(df)
+      # Un redimensionado del mapa (sidebar, rotación, orientación en móvil)
+      # puede hacer que Leaflet reporte momentáneamente un encuadre inválido
+      # o degenerado (valores no numéricos, o un rectángulo sin área). Se
+      # trata igual que "todavía no hay encuadre": mostrar todos los datos,
+      # en vez de dejar la app entera sin datos por un valor transitorio.
+      bounds_validos <- !is.null(bounds) &&
+        all(vapply(bounds, function(x) is.numeric(x) && length(x) == 1 && is.finite(x), logical(1))) &&
+        bounds$south < bounds$north && bounds$west < bounds$east
+
+      if (!bounds_validos || is.null(df) || nrow(df) == 0) return(df)
 
       # Filtramos los inmuebles cuyas lat/lng están dentro de la ventana visible
       df[df$lat >= bounds$south & df$lat <= bounds$north &
