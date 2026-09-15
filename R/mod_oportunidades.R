@@ -110,8 +110,10 @@ oportunidadesServer <- function(id, datos_visibles) {
     output$mapa_oportunidades <- renderLeaflet({
       df <- df_oportunidades()
       
-      m <- leaflet() %>% 
-        addProviderTiles(providers$CartoDB.Positron)
+      # OpenStreetMap no requiere API key (a diferencia de los mapas base de
+      # CartoDB, que ahora la exigen en su plan gratuito).
+      m <- leaflet() %>%
+        addTiles()
       
       if (!is.null(df) && nrow(df) > 0) {
         

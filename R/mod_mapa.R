@@ -67,6 +67,13 @@ mapaServer <- function(id, datos_reactivos) {
       )
 
       leaflet() %>%
+        # Los mapas base de CartoDB (Positron/DarkMatter) ahora exigen clave
+        # de API para su plan gratuito y muestran una marca de agua sin
+        # ella; se dejan como alternativa opcional en el selector de capas,
+        # pero OpenStreetMap (sin clave) va al final para quedar por encima
+        # en el mapa -- todas las capas base se añaden apiladas y R-leaflet
+        # no oculta las que no están "activas" en el control, así que la
+        # última añadida es la que se ve por defecto.
         addProviderTiles(providers$CartoDB.Positron, group = "Mapa Claro") %>%
         addProviderTiles(providers$CartoDB.DarkMatter, group = "Mapa Oscuro") %>%
         addTiles(group = "OpenStreetMap") %>%
@@ -99,7 +106,7 @@ mapaServer <- function(id, datos_reactivos) {
         # cargan aquí -- se construyen bajo demanda (ver observer de abajo)
         # solo si el usuario las activa, para no penalizar la carga inicial.
         addLayersControl(
-          baseGroups = c("Mapa Claro", "Mapa Oscuro", "OpenStreetMap"),
+          baseGroups = c("OpenStreetMap", "Mapa Claro", "Mapa Oscuro"),
           overlayGroups = c(GRUPO_BARRIOS, GRUPO_INDIVIDUALES, GRUPO_CALOR),
           options = layersControlOptions(collapsed = TRUE)
         ) %>%
