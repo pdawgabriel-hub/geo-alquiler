@@ -19,6 +19,7 @@ Imports:
     ggplot2,
     sf,
     htmltools,
+    htmlwidgets,
     jsonlite,
     stats
 Suggests:

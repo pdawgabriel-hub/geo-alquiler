@@ -32,7 +32,8 @@ app_server <- function(input, output, session) {
   # opcional: si falta el fichero, solo esa pestaña muestra un aviso.
   path_observatorio <- app_sys("app/data/observatorio_municipios.parquet")
   if (path_observatorio == "") path_observatorio <- "inst/app/data/observatorio_municipios.parquet"
-  datos_observatorio <- if (file.exists(path_observatorio)) arrow::read_parquet(path_observatorio) else NULL
+  # Se lee y prepara una vez por proceso, no en cada sesión (ver cargar_observatorio()).
+  datos_observatorio <- cargar_observatorio(path_observatorio)
 
   # Estado reactivo global para guardar IDs de inmuebles favoritos
   favoritos_ids <- reactiveVal(c())

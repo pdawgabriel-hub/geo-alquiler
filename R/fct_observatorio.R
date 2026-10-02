@@ -132,3 +132,76 @@ observatorio_a_sf <- function(df, columna = "geometria") {
   df[intersect(c("geometria", "geometria_baja"), names(df))] <- NULL
   sf::st_sf(df, geometry = geom)
 }
+
+#' Geometría (MULTIPOLYGON) a JSON en el formato que espera addPolygons() de
+#' leaflet: un elemento por municipio, con sus polígonos y, en cada uno, sus
+#' anillos como {"lng": [...], "lat": [...]}.
+#'
+#' Es el mismo JSON que saldría de leaflet() %>% addPolygons(data = g) y
+#' jsonlite::toJSON(), pero generado directamente desde st_coordinates() con
+#' operaciones vectorizadas: para los ~8.000 municipios de España tarda
+#' menos de 1 s, frente a ~6 s por el camino estándar (que construye y
+#' serializa cientos de miles de listas anidadas). Devuelve un objeto de
+#' clase "json", que shiny inserta tal cual en el mensaje.
+#' @noRd
+geometria_a_json_leaflet <- function(g, decimales = 5) {
+  g <- sf::st_cast(sf::st_geometry(g), "MULTIPOLYGON")
+  co <- sf::st_coordinates(g)
+  # L1 = anillo dentro del polígono, L2 = polígono dentro del multipolígono,
+  # L3 = municipio. st_coordinates() los devuelve ya ordenados.
+  num <- function(x) as.character(round(x, decimales))
+  anillo <- paste(co[, "L3"], co[, "L2"], co[, "L1"], sep = "_")
+  anillo <- factor(anillo, levels = unique(anillo))
+  lng <- vapply(split(num(co[, "X"]), anillo), paste, character(1), collapse = ",")
+  lat <- vapply(split(num(co[, "Y"]), anillo), paste, character(1), collapse = ",")
+  json_anillo <- paste0('{"lng":[', lng, '],"lat":[', lat, ']}')
+
+  primera <- !duplicated(anillo)
+  poligono <- paste(co[primera, "L3"], co[primera, "L2"], sep = "_")
+  poligono <- factor(poligono, levels = unique(poligono))
+  json_poligono <- vapply(split(json_anillo, poligono), function(x) paste0("[", paste(x, collapse = ","), "]"), character(1))
+
+  municipio <- factor(co[primera, "L3"][!duplicated(poligono)], levels = seq_along(g))
+  json_municipio <- vapply(split(json_poligono, municipio), function(x) paste0("[", paste(x, collapse = ","), "]"), character(1))
+
+  structure(paste0("[", paste(json_municipio, collapse = ","), "]"), class = "json")
+}
+
+#' Prepara la tabla del observatorio para la app: la convierte a sf en sus
+#' dos niveles de detalle y crea la caché de geometría serializada por ámbito.
+#' Se hace una vez por proceso (ver cargar_observatorio()), no en cada sesión.
+#' @noRd
+preparar_observatorio <- function(df) {
+  detalle <- observatorio_a_sf(df, "geometria")
+  structure(
+    list(
+      detalle = detalle,
+      nacional = observatorio_a_sf(df, "geometria_baja"),
+      tabla = sf::st_drop_geometry(detalle),
+      json = new.env(parent = emptyenv())
+    ),
+    class = "observatorio_preparado"
+  )
+}
+
+#' Geometría de un ámbito en JSON para leaflet, cacheada en el objeto
+#' preparado: solo la primera sesión que abre cada ámbito la genera.
+#' @noRd
+geometria_ambito_json <- function(obs, ambito, poligonos_sf) {
+  if (is.null(obs$json[[ambito]])) obs$json[[ambito]] <- geometria_a_json_leaflet(poligonos_sf)
+  obs$json[[ambito]]
+}
+
+.observatorios_cargados <- new.env(parent = emptyenv())
+
+#' Lee y prepara observatorio_municipios.parquet una sola vez por proceso
+#' (en shinyapps.io, un proceso atiende muchas sesiones). Devuelve NULL si
+#' el fichero no existe.
+#' @noRd
+cargar_observatorio <- function(ruta) {
+  if (!file.exists(ruta)) return(NULL)
+  if (is.null(.observatorios_cargados[[ruta]])) {
+    .observatorios_cargados[[ruta]] <- preparar_observatorio(arrow::read_parquet(ruta))
+  }
+  .observatorios_cargados[[ruta]]
+}

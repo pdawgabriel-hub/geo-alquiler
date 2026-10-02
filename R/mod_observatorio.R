@@ -14,24 +14,9 @@ ENCUADRE_ESPANA <- c(-9.4, 35.9, 4.4, 43.8)
 # recoloreo (inst/app/www/custom.js) lo usa para sustituir solo el valor.
 SEP_ETIQUETA <- " \u2014 "
 
-# Caché por proceso de la geometría de cada ámbito ya convertida a JSON.
-# Convertir ~8.000 polígonos al formato de leaflet y serializarlos cuesta
-# ~5 s de CPU; así solo lo paga la primera sesión que abre cada ámbito, y las
-# siguientes (y los cambios de ámbito de ida y vuelta) lo reutilizan.
-.cache_geometria_obs <- new.env(parent = emptyenv())
-
-geometria_leaflet_json <- function(clave, poligonos_sf) {
-  if (is.null(.cache_geometria_obs[[clave]])) {
-    llamada <- leaflet() %>% addPolygons(data = poligonos_sf)
-    geom <- llamada$x$calls[[1]]$args[[1]]
-    # 5 decimales en grados ~ 1 m: más precisión no se ve y engorda el envío
-    .cache_geometria_obs[[clave]] <- jsonlite::toJSON(geom, digits = 5, auto_unbox = TRUE, dataframe = "columns")
-  }
-  .cache_geometria_obs[[clave]]
-}
-
-#' Igual que leafletProxy() %>% addPolygons(), pero con la geometría ya
-#' serializada (clase "json": shiny la inserta tal cual en el mensaje).
+#' Igual que addPolygons(), pero con la geometría ya serializada (clase
+#' "json": shiny y htmlwidgets la insertan tal cual). Vale tanto para un mapa
+#' leaflet() como para un leafletProxy().
 #' El resto de argumentos (colores, etiquetas...) se generan con el propio
 #' addPolygons() de leaflet sobre un polígono ficticio, para no depender del
 #' orden interno de sus argumentos.
@@ -115,11 +100,18 @@ observatorioServer <- function(id, datos_observatorio) {
       return(invisible(NULL))
     }
 
+    # La app pasa el observatorio ya preparado y cacheado por proceso
+    # (cargar_observatorio()); los tests pueden pasar la tabla tal cual.
+    obs <- if (inherits(datos_observatorio, "observatorio_preparado")) {
+      datos_observatorio
+    } else {
+      preparar_observatorio(datos_observatorio)
+    }
     # Dos niveles de detalle de la misma geometría (ver 09_observatorio.R):
     # el grueso para toda España y el fino al filtrar por provincia.
-    obs_detalle <- observatorio_a_sf(datos_observatorio, "geometria")
-    obs_nacional <- observatorio_a_sf(datos_observatorio, "geometria_baja")
-    tabla_obs <- sf::st_drop_geometry(obs_detalle)
+    obs_detalle <- obs$detalle
+    obs_nacional <- obs$nacional
+    tabla_obs <- obs$tabla
     anio <- tabla_obs$anio_referencia[1]
     anio_pob <- max(tabla_obs$anio_poblacion_ultima, na.rm = TRUE)
 
@@ -133,6 +125,15 @@ observatorioServer <- function(id, datos_observatorio) {
     )
 
     municipio_sel <- reactiveVal(NULL)
+
+    # Shiny envía juntas todas las salidas calculadas en un mismo ciclo y no
+    # pinta ninguna hasta tener cargadas las librerías de todas. La primera
+    # vez que se abre esta pestaña eso incluye plotly.js y DataTables (varios
+    # MB), así que el mapa, ya recibido, esperaba ~1,5 s a que cargaran. Por
+    # eso el gráfico y el ranking esperan a que el navegador avise de que el
+    # mapa ya está pintado (input$mapa_pintado, ver renderLeaflet): esperar
+    # solo a enviarlo no basta, porque procesar plotly.js bloquea el
+    # navegador y retrasaba igualmente el primer dibujado del mapa.
 
     # --- Datos según ámbito ---------------------------------------------------
     datos_ambito <- reactive({
@@ -191,42 +192,14 @@ observatorioServer <- function(id, datos_observatorio) {
       )
     }
 
-    # El mapa base se pinta una sola vez; los polígonos se cambian después
-    # por leafletProxy. Volver a renderizar el widget al cambiar de ámbito
-    # destruye el mapa con un redibujado de canvas pendiente, y Leaflet lanza
-    # un error ("clearRect") en el navegador.
-    output$mapa <- renderLeaflet({
-      leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
-        addProviderTiles(providers$CartoDB.Positron, group = "Mapa Claro") %>%
-        addTiles(group = "OpenStreetMap") %>%
-        fitBounds(ENCUADRE_ESPANA[1], ENCUADRE_ESPANA[2], ENCUADRE_ESPANA[3], ENCUADRE_ESPANA[4]) %>%
-        addLayersControl(baseGroups = c("OpenStreetMap", "Mapa Claro"),
-                         options = layersControlOptions(collapsed = TRUE))
-    })
-
-    # La pestaña empieza oculta y Shiny no pinta el mapa hasta que se abre:
-    # los mensajes de leafletProxy enviados antes se perderían. El mapa
-    # informa de su encuadre al pintarse, y eso marca que ya está listo
-    # (reactiveVal solo invalida al cambiar de valor, así que los
-    # siguientes cambios de encuadre no vuelven a disparar nada).
-    mapa_listo <- reactiveVal(FALSE)
-    observeEvent(input$mapa_bounds, mapa_listo(TRUE))
-
-    # Polígonos del ámbito. El indicador se lee con isolate(): cambiarlo solo
-    # recolorea los polígonos ya pintados (observer de abajo).
-    observe({
-      req(mapa_listo())
-      df <- datos_ambito()
+    # Polígonos de un ámbito, coloreados con el indicador actual. La usan el
+    # primer render del mapa y los cambios de ámbito posteriores (por proxy).
+    pintar_ambito <- function(mapa, df, ambito) {
       est <- estilo_indicador(sf::st_drop_geometry(df), isolate(input$indicador))
-      caja <- if (isolate(input$ambito) == TODA_ESPANA) ENCUADRE_ESPANA else as.numeric(sf::st_bbox(df))
-
-      geom_json <- geometria_leaflet_json(isolate(input$ambito), df)
-
-      leafletProxy("mapa") %>%
-        clearShapes() %>%
-        clearGroup("seleccion") %>%
+      caja <- if (ambito == TODA_ESPANA) ENCUADRE_ESPANA else as.numeric(sf::st_bbox(df))
+      mapa %>%
         anadir_poligonos_cacheados(
-          geom_json,
+          geometria_ambito_json(obs, ambito, df),
           layerId = df$cod_ine,
           fillColor = est$colores,
           fillOpacity = est$opacidades,
@@ -237,7 +210,39 @@ observatorioServer <- function(id, datos_observatorio) {
         ) %>%
         fitBounds(caja[1], caja[2], caja[3], caja[4]) %>%
         anadir_leyenda(est)
+    }
+
+    # El mapa se renderiza una sola vez por sesión, ya con los polígonos del
+    # ámbito inicial dentro (así no hay que esperar a que el navegador avise
+    # de que el mapa existe para mandárselos). Todo se lee con isolate():
+    # volver a renderizar el widget destruiría el mapa con un redibujado de
+    # canvas pendiente y Leaflet daría un error ("clearRect").
+    output$mapa <- renderLeaflet({
+      leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+        addProviderTiles(providers$CartoDB.Positron, group = "Mapa Claro") %>%
+        addTiles(group = "OpenStreetMap") %>%
+        addLayersControl(baseGroups = c("OpenStreetMap", "Mapa Claro"),
+                         options = layersControlOptions(collapsed = TRUE)) %>%
+        pintar_ambito(isolate(datos_ambito()), isolate(input$ambito)) %>%
+        htmlwidgets::onRender("
+          function(el) {
+            // Dos fotogramas: el primero dibuja el canvas, el segundo
+            // garantiza que ya está en pantalla.
+            requestAnimationFrame(function() {
+              requestAnimationFrame(function() {
+                Shiny.setInputValue(el.id + '_pintado', true);
+              });
+            });
+          }")
     })
+
+    # Cambios de ámbito posteriores: se sustituyen los polígonos por proxy.
+    observeEvent(input$ambito, {
+      leafletProxy("mapa") %>%
+        clearShapes() %>%
+        clearGroup("seleccion") %>%
+        pintar_ambito(datos_ambito(), input$ambito)
+    }, ignoreInit = TRUE)
 
     observeEvent(input$indicador, {
       df <- sf::st_drop_geometry(datos_ambito())
@@ -365,6 +370,7 @@ observatorioServer <- function(id, datos_observatorio) {
 
     # --- Gráfico renta vs. alquiler -------------------------------------------
     output$grafico_renta_alquiler <- renderPlotly({
+      req(input$mapa_pintado)
       df <- tabla_ambito()
       df <- df[!is.na(df$renta_hogar) & !is.na(df$alquiler_m2_mediana), ]
       validate(need(nrow(df) > 0, "No hay municipios con renta y alquiler para este ámbito y población mínima."))
@@ -438,6 +444,7 @@ observatorioServer <- function(id, datos_observatorio) {
     })
 
     output$ranking <- renderDT({
+      req(input$mapa_pintado)
       df <- ranking_df()
       id_ind <- input$indicador
       etiqueta <- indicadores_observatorio()$etiqueta[indicadores_observatorio()$id == id_ind]

@@ -87,6 +87,31 @@ test_that("observatorio_a_sf reconstruye la geometría WKB guardada en Parquet",
   expect_equal(sf::st_crs(x)$epsg, 4326L)
 })
 
+test_that("geometria_a_json_leaflet produce el mismo JSON que addPolygons() + jsonlite", {
+  anillo <- function(x, y, d) rbind(c(x, y), c(x + d, y), c(x + d, y + d), c(x, y + d), c(x, y))
+  geom <- sf::st_sfc(
+    # Un municipio con dos polígonos (p. ej. con un enclave) y otro con agujero
+    sf::st_multipolygon(list(list(anillo(-3.7, 40.4, 0.1)), list(anillo(-3.4, 40.4, 0.05)))),
+    sf::st_multipolygon(list(list(anillo(-3.6, 40.3, 0.2), anillo(-3.55, 40.35, 0.05)))),
+    crs = 4326
+  )
+  nuevo <- geometria_a_json_leaflet(geom)
+  expect_s3_class(nuevo, "json")
+
+  args <- (leaflet() %>% addPolygons(data = geom))$x$calls[[1]]$args[[1]]
+  referencia <- jsonlite::toJSON(args, digits = 5, auto_unbox = TRUE, dataframe = "columns")
+  expect_equal(jsonlite::fromJSON(nuevo, simplifyVector = FALSE),
+               jsonlite::fromJSON(referencia, simplifyVector = FALSE))
+})
+
+test_that("La geometría serializada se cachea por ámbito en el observatorio preparado", {
+  obs <- preparar_observatorio(observatorio_mock())
+  expect_s3_class(obs, "observatorio_preparado")
+  primera <- geometria_ambito_json(obs, "Madrid", obs$detalle)
+  # Con la caché llena no se vuelve a calcular (aunque cambie la geometría)
+  expect_identical(geometria_ambito_json(obs, "Madrid", obs$detalle[1, ]), primera)
+})
+
 test_that("Los nombres de municipio del INE, Catastro e IGN se normalizan a la misma clave", {
   expect_equal(claves_municipio("Acebeda, La")[[1]][1], "laacebeda")
   expect_equal(claves_municipio("Acebeda (La)")[[1]][1], "laacebeda")
