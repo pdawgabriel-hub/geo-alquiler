@@ -16,6 +16,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Architecture](#architecture)
 - [Key Features / Modules](#key-features)
   - [1. Spatial Exploration](#spatial-exploration)
   - [2. Analytics & Machine Learning](#analytics-ml)
@@ -53,7 +54,33 @@ To achieve this, GeoAlquiler is built on three pillars, plus a nationwide observ
 3. **Investment Tools** — turn the data into concrete buy/rent decisions through calculators and comparisons.
 4. **Spain Rental Observatory** — a choropleth map of Spain's ~8,200 municipalities that cross-references the Ministry of Housing's official rental index (SERPAVI) with INE income and population data and the Cadastre's housing stock.
 
+### How it's built
+
+The app is organized in three layers that don't mix, so every change has an obvious place (the full diagram is in [Architecture](#architecture)):
+
+- **Offline ingestion** (`scripts/ingesta/`). Downloading, cleaning and joining the sources is done by hand with `Rscript scripts/ingesta/run_pipeline.R`, never inside the app. The output is two Parquet files that ship with the package, so the app starts fast and doesn't depend on any external website being up. If a source changes format, the pipeline fails with an explicit error instead of the app failing in production.
+- **Business logic without Shiny** (`R/fct_*.R`). The calculations that matter (indicators, municipality name matching, number formatting, map geometry) are pure functions shared by the pipeline and the app, and they're tested with `testthat` without starting a server.
+- **Module-based interface** (`R/mod_*.R`). Each screen is an independent module. `app_server.R` only wires them together and decides which version of the data each one receives, which is the app's central design decision:
+
+| The module receives… | Modules | Why |
+|---|---|---|
+| `datos_visibles`: filters + what's visible on the map | Table, Analytics, Statistics, Opportunities, Calculator, Report, Export | They answer "what am I looking at right now" |
+| Filtered data, not cropped to the map | KNN Recommender | Searching for similar listings only within the map view would leave very few candidates |
+| Full dataset | Comparator, Prediction, Neighborhoods, Favorites | They need the whole market: training the model, comparing cities, not losing favorites when filtering |
+| Its own dataset | Observatory | Official data aggregated by municipality, independent of the filters |
+
+Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [Performance & Responsive Design](#performance-responsive)).
+
 The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics). Per-zone prices come from real sources (Generalitat de Catalunya, Generalitat Valenciana, Basque Government) or, where no official source exists, from published indices documented by hand (see `scripts/ingesta/`).
+
+[⬆ Back to top](#top)
+
+---
+
+<a id="architecture"></a>
+## Architecture
+
+![GeoAlquiler architecture diagram: offline ingestion produces two Parquet files; the Shiny app loads them in app_server.R, which hands visible, filtered or full data to each module, while the Observatory loads its own file once per process; the browser receives ready-made widgets and sends clicks, filters and map view back as events.](man/figures/arquitectura.en.svg)
 
 [⬆ Back to top](#top)
 
@@ -223,13 +250,14 @@ geo-alquiler/
 │   ├── mod_calculadora.R    # Module: profitability calculator
 │   ├── mod_reporte.R        # Module: downloadable executive report
 │   ├── mod_observatorio.R   # Module: Spain Rental Observatory (choropleth map)
-│   └── fct_observatorio.R   # Observatory logic without Shiny (indicators, formatting, WKB -> sf)
+│   └── fct_observatorio.R   # Observatory logic without Shiny (indicators, formatting, "no data" reasons,
+│                            #   WKB -> sf, geometry serialization for Leaflet, per-process cache)
 ├── inst/
 │   └── app/
 │       ├── data/           # Data bundled with the app (alquileres.parquet, observatorio_municipios.parquet)
 │       └── www/            # Responsive CSS/JS (custom.css, custom.js) -- see "Performance & Responsive Design"
 ├── man/
-│   └── figures/            # Screenshots used in this README
+│   └── figures/            # Screenshots and architecture diagram used in this README
 ├── data/
 │   └── processed/          # Processed data in .rds / .parquet formats
 ├── scripts/
@@ -254,7 +282,7 @@ geo-alquiler/
 │       ├── test_calculos.R        # Calculation logic tests (price/m², KPIs, etc.)
 │       ├── test_mod_tabla.R       # Tests for the table module
 │       ├── test_tabla.R           # Additional table/data tests
-│       └── test_observatorio.R    # Observatory tests (indicators, name matching, module)
+│       └── test_observatorio.R    # Observatory tests (indicators, name matching, geometry, module)
 ├── renv.lock                      # renv lockfile (dependency reproducibility)
 └── geo-alquiler.Rproj             # RStudio project
 ```
@@ -320,7 +348,7 @@ Individual "listings" are an illustration generated within each geolocated zone 
 
 ### Rental Observatory (SERPAVI + INE + Cadastre)
 
-The Observatory uses a second file, `inst/app/data/observatorio_municipios.parquet` (~4.7 MB, one row per municipality with its geometry as WKB), generated by `scripts/ingesta/09_observatorio.R`:
+The Observatory uses a second file, `inst/app/data/observatorio_municipios.parquet` (~4.8 MB, one row per municipality with its geometry as WKB), generated by `scripts/ingesta/09_observatorio.R`:
 
 | Source | What's downloaded | How |
 |---|---|---|
@@ -363,7 +391,8 @@ The common reference year lives in `ANIO_OBSERVATORIO` (`scripts/ingesta/00_conf
 | [`DT`](https://cran.r-project.org/package=DT) | Interactive data tables |
 | [`plotly`](https://cran.r-project.org/package=plotly) | Interactive visual analytics charts |
 | [`sf`](https://cran.r-project.org/package=sf) | The Observatory's municipal geometry (reading the WKB stored in Parquet) |
-| [`jsonlite`](https://cran.r-project.org/package=jsonlite) / [`htmltools`](https://cran.r-project.org/package=htmltools) | Cached serialization of the Observatory's geometry and HTML labels |
+| [`htmlwidgets`](https://cran.r-project.org/package=htmlwidgets) | Browser signal once the Observatory map has been painted (`onRender`), so the chart and ranking are sent afterwards |
+| [`jsonlite`](https://cran.r-project.org/package=jsonlite) | Reading clicks on the Observatory chart |
 
 On top of this, `{testthat}` is used as a development dependency for the test suite, and `{renv}` for version control of all dependencies. You'll also need `{roxygen2}` installed to generate the package's `NAMESPACE` file (see step 4 of the installation) — without it, the application **won't start correctly**, since `NAMESPACE` is what tells R which functions from `shiny`, `leaflet`, `DT`, etc. should be made available to the app's code.
 
@@ -567,7 +596,7 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 <a id="testing-quality"></a>
 ## Testing & Quality
 
-GeoAlquiler includes a suite of **unit tests** with **[`{testthat}`](https://testthat.r-lib.org/)**, following the standard structure of an R package (`tests/testthat/`). The current tests cover, among other things, the logic behind metric calculations (e.g., price per m²) and the safe behavior of KPIs when given empty datasets, the table module, and the Observatory (`test_observatorio.R`: derived indicators and how they handle missing data, Spanish number formatting, quantile breaks, geometry reconstruction, normalizing and matching municipality names across INE/Cadastre/IGN, parsing the Cadastre tables, and the module itself with `testServer`).
+GeoAlquiler includes a suite of **unit tests** with **[`{testthat}`](https://testthat.r-lib.org/)**, following the standard structure of an R package (`tests/testthat/`). The current tests cover, among other things, the logic behind metric calculations (e.g., price per m²) and the safe behavior of KPIs when given empty datasets, the table module, and the Observatory (`test_observatorio.R`: derived indicators and how they handle missing data, Spanish number formatting, quantile breaks, geometry reconstruction, normalizing and matching municipality names across INE/Cadastre/IGN, approximate matching of renamed or translated names, the reason behind each missing value, parsing the Cadastre tables, checking that the hand-built geometry JSON is identical to Leaflet's, the per-area geometry cache, and the module itself with `testServer`).
 
 ### Run all tests
 

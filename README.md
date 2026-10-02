@@ -16,6 +16,7 @@
 ## Índice
 
 - [Descripción General](#descripcion-general)
+- [Arquitectura](#arquitectura)
 - [Características Principales / Módulos](#caracteristicas-principales)
   - [1. Exploración Espacial](#exploracion-espacial)
   - [2. Analítica & Machine Learning](#analitica-ml)
@@ -53,7 +54,33 @@ Para lograrlo, GeoAlquiler se apoya en tres pilares, más un observatorio a esca
 3. **Herramientas de Inversión** — traducir los datos en decisiones concretas de compra/alquiler mediante calculadoras y comparativas.
 4. **Observatorio del Alquiler en España** — mapa coroplético de los ~8.200 municipios que cruza el índice oficial de alquiler del Ministerio de Vivienda (SERPAVI) con la renta y la población del INE y el parque residencial del Catastro.
 
+### Cómo está construido
+
+La app se organiza en tres capas que no se mezclan, y cada cambio tiene un sitio claro (el esquema completo está en [Arquitectura](#arquitectura)):
+
+- **Ingesta offline** (`scripts/ingesta/`). Descargar, limpiar y cruzar las fuentes se hace a mano con `Rscript scripts/ingesta/run_pipeline.R`, nunca dentro de la app. El resultado son dos ficheros Parquet que viajan con el paquete, así que la app arranca rápido y no depende de que ninguna web externa responda. Si una fuente cambia de formato, falla el pipeline con un error explícito, no la app en producción.
+- **Lógica de negocio sin Shiny** (`R/fct_*.R`). Los cálculos que importan (indicadores, cruce de nombres de municipio, formato de cifras, geometría del mapa) son funciones puras que usan tanto el pipeline como la app, y se prueban con `testthat` sin levantar un servidor.
+- **Interfaz por módulos** (`R/mod_*.R`). Cada pantalla es un módulo independiente. `app_server.R` solo los ensambla y decide qué versión de los datos recibe cada uno, que es la decisión de diseño central de la app:
+
+| El módulo recibe… | Módulos | Por qué |
+|---|---|---|
+| `datos_visibles`: filtros + lo que se ve en el mapa | Tabla, Analítica, Estadística, Oportunidades, Calculadora, Informe, Exportar | Responden a "lo que estoy mirando ahora" |
+| Datos filtrados, sin recorte del mapa | Recomendador KNN | Buscar similares solo en el encuadre daría muy pocos candidatos |
+| Dataset completo | Comparador, Predicción, Barrios, Favoritos | Necesitan todo el mercado: entrenar el modelo, comparar ciudades, no perder favoritos al filtrar |
+| Su propio dataset | Observatorio | Datos oficiales agregados por municipio, independientes de los filtros |
+
+El trabajo pesado se hace en el servidor y al navegador solo llega lo que se va a pintar (ver [Rendimiento y Diseño Responsive](#rendimiento-responsive)).
+
 El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los precios por zona proceden de fuentes reales (Generalitat de Catalunya, Generalitat Valenciana, Gobierno Vasco) o, donde no existe fuente oficial, de índices publicados documentados a mano (ver `scripts/ingesta/`).
+
+[⬆ Volver arriba](#top)
+
+---
+
+<a id="arquitectura"></a>
+## Arquitectura
+
+![Esquema de la arquitectura de GeoAlquiler: la ingesta offline genera dos ficheros Parquet; la app Shiny los carga en app_server.R, que reparte datos visibles, filtrados o completos a cada módulo, y el Observatorio carga su propio fichero una vez por proceso; el navegador recibe widgets ya preparados y devuelve clics, filtros y encuadre como eventos.](man/figures/arquitectura.svg)
 
 [⬆ Volver arriba](#top)
 
@@ -223,13 +250,14 @@ geo-alquiler/
 │   ├── mod_calculadora.R    # Módulo: calculadora de rentabilidad
 │   ├── mod_reporte.R        # Módulo: informe ejecutivo descargable
 │   ├── mod_observatorio.R   # Módulo: Observatorio del Alquiler en España (mapa coroplético)
-│   └── fct_observatorio.R   # Lógica del observatorio sin Shiny (indicadores, formato, WKB -> sf)
+│   └── fct_observatorio.R   # Lógica del observatorio sin Shiny (indicadores, formato, motivos de "sin dato",
+│                            #   WKB -> sf, serialización de la geometría para Leaflet, caché por proceso)
 ├── inst/
 │   └── app/
 │       ├── data/           # Datos empaquetados con la app (alquileres.parquet, observatorio_municipios.parquet)
 │       └── www/            # CSS/JS responsive (custom.css, custom.js) -- ver "Rendimiento y Diseño Responsive"
 ├── man/
-│   └── figures/            # Capturas de pantalla usadas en este README
+│   └── figures/            # Capturas de pantalla y esquema de arquitectura usados en este README
 ├── data/
 │   └── processed/          # Datos procesados en formatos .rds / .parquet
 ├── scripts/
@@ -254,7 +282,7 @@ geo-alquiler/
 │       ├── test_calculos.R        # Tests de lógica de cálculo (precio/m², KPIs, etc.)
 │       ├── test_mod_tabla.R       # Tests del módulo de tabla
 │       ├── test_tabla.R           # Tests adicionales de tabla/datos
-│       └── test_observatorio.R    # Tests del observatorio (indicadores, cruce de nombres, módulo)
+│       └── test_observatorio.R    # Tests del observatorio (indicadores, cruce de nombres, geometría, módulo)
 ├── renv.lock                      # Lockfile de renv (reproducibilidad de dependencias)
 └── geo-alquiler.Rproj             # Proyecto de RStudio
 ```
@@ -320,7 +348,7 @@ Los "anuncios" individuales son una ilustración generada dentro de cada zona ge
 
 ### Observatorio del Alquiler (SERPAVI + INE + Catastro)
 
-El Observatorio usa un segundo fichero, `inst/app/data/observatorio_municipios.parquet` (~4,7 MB, una fila por municipio con su geometría en WKB), generado por `scripts/ingesta/09_observatorio.R`:
+El Observatorio usa un segundo fichero, `inst/app/data/observatorio_municipios.parquet` (~4,8 MB, una fila por municipio con su geometría en WKB), generado por `scripts/ingesta/09_observatorio.R`:
 
 | Fuente | Qué se descarga | Cómo |
 |---|---|---|
@@ -363,7 +391,8 @@ El año de referencia común está en `ANIO_OBSERVATORIO` (`scripts/ingesta/00_c
 | [`DT`](https://cran.r-project.org/package=DT) | Tablas de datos interactivas |
 | [`plotly`](https://cran.r-project.org/package=plotly) | Gráficos interactivos de analítica visual |
 | [`sf`](https://cran.r-project.org/package=sf) | Geometría municipal del Observatorio (lectura del WKB guardado en Parquet) |
-| [`jsonlite`](https://cran.r-project.org/package=jsonlite) / [`htmltools`](https://cran.r-project.org/package=htmltools) | Serialización en caché de la geometría del Observatorio y etiquetas HTML |
+| [`htmlwidgets`](https://cran.r-project.org/package=htmlwidgets) | Aviso del navegador cuando el mapa del Observatorio ya está pintado (`onRender`), para enviar después el gráfico y el ranking |
+| [`jsonlite`](https://cran.r-project.org/package=jsonlite) | Lectura de los clics del gráfico del Observatorio |
 
 A esto se suma `{testthat}` como dependencia de desarrollo para la suite de tests, y `{renv}` para el control de versiones de todas las dependencias. Además, necesitas `{roxygen2}` instalado para generar el archivo `NAMESPACE` del paquete (ver paso 4 de la instalación) — sin él, la aplicación **no arranca correctamente**, ya que `NAMESPACE` es lo que le indica a R qué funciones de `shiny`, `leaflet`, `DT`, etc. debe poner a disposición del código de la app.
 
@@ -567,7 +596,7 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 <a id="testing-calidad"></a>
 ## Testing & Calidad
 
-GeoAlquiler incluye una suite de **pruebas unitarias** con **[`{testthat}`](https://testthat.r-lib.org/)**, siguiendo la estructura estándar de un paquete de R (`tests/testthat/`). Las pruebas actuales cubren, entre otros aspectos, la lógica de cálculo de métricas (p. ej. precio por m²) y el comportamiento seguro de los KPIs ante conjuntos de datos vacíos, el módulo de tabla y el Observatorio (`test_observatorio.R`: indicadores derivados y su manejo de datos ausentes, formato numérico español, cortes por cuantiles, reconstrucción de la geometría, normalización y cruce de nombres de municipio entre INE/Catastro/IGN, parseo de las tablas del Catastro, y el módulo con `testServer`).
+GeoAlquiler incluye una suite de **pruebas unitarias** con **[`{testthat}`](https://testthat.r-lib.org/)**, siguiendo la estructura estándar de un paquete de R (`tests/testthat/`). Las pruebas actuales cubren, entre otros aspectos, la lógica de cálculo de métricas (p. ej. precio por m²) y el comportamiento seguro de los KPIs ante conjuntos de datos vacíos, el módulo de tabla y el Observatorio (`test_observatorio.R`: indicadores derivados y su manejo de datos ausentes, formato numérico español, cortes por cuantiles, reconstrucción de la geometría, normalización y cruce de nombres de municipio entre INE/Catastro/IGN, cruce aproximado de nombres renombrados o en otro idioma, motivo de cada dato ausente, parseo de las tablas del Catastro, que el JSON de geometría generado a mano sea idéntico al de Leaflet, la caché de geometría por ámbito, y el módulo con `testServer`).
 
 ### Ejecutar todos los tests
 
