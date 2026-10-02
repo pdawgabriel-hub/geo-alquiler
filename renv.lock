@@ -1927,9 +1927,6 @@
         "vctrs (>= 0.6.3)",
         "withr"
       ],
-      "LinkingTo": [
-        null
-      ],
       "Suggests": [
         "askpass",
         "bench",
@@ -2017,9 +2014,6 @@
       ],
       "Imports": [
         "jsonlite"
-      ],
-      "LinkingTo": [
-        null
       ],
       "Suggests": [
         "spelling",
@@ -2607,9 +2601,6 @@
       "Imports": [
         "tools",
         "utils"
-      ],
-      "LinkingTo": [
-        null
       ],
       "Suggests": [
         "devtools",
@@ -3531,9 +3522,6 @@
         "yaml\n(>= 2.1.5)",
         "utils"
       ],
-      "LinkingTo": [
-        null
-      ],
       "Suggests": [
         "Biobase",
         "BiocManager",
@@ -3565,15 +3553,6 @@
       "Version": "0.19.0",
       "Source": "Repository",
       "Priority": null,
-      "Depends": [
-        null
-      ],
-      "Imports": [
-        null
-      ],
-      "LinkingTo": [
-        null
-      ],
       "Suggests": [
         "testthat",
         "knitr",
@@ -3895,9 +3874,6 @@
       "Version": "0.2.2",
       "Source": "Repository",
       "Priority": null,
-      "Depends": [
-        null
-      ],
       "Imports": [
         "cli",
         "curl",
@@ -3906,9 +3882,6 @@
         "rlang",
         "jose",
         "openssl"
-      ],
-      "LinkingTo": [
-        null
       ],
       "Suggests": [
         "httpuv",

@@ -10,6 +10,7 @@
 ![golem](https://img.shields.io/badge/Framework-golem-6E4A7E)
 ![License](https://img.shields.io/badge/Licencia-Portfolio%20%2F%20Uso%20restringido-red)
 ![Status](https://img.shields.io/badge/Estado-En%20desarrollo-yellow)
+[![Tests](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml/badge.svg)](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml)
 
 ---
 

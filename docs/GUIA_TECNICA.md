@@ -337,17 +337,17 @@ Rscript -e 'roxygen2::roxygenise()'
 | Ejecutar tests | `Ctrl/Cmd + Shift + T` | `Rscript -e 'testthat::test_dir("tests/testthat")'` |
 | Check completo | `Ctrl/Cmd + Shift + E` | `R CMD build . && R CMD check --no-manual GeoAlquiler_*.tar.gz` |
 
-### Problema conocido: `renv` pierde la librería al mover el proyecto
+### Si `renv` no encuentra los paquetes
 
-`renv` asocia la librería de paquetes a la ruta del proyecto. Si mueves o renombras la carpeta, al arrancar verás `One or more packages recorded in the lockfile are not installed` y errores como `there is no package called 'testthat'` o `'pkgload'`.
-
-`renv::restore()` lo resuelve, pero en este proyecto intenta descargar además un paquete fantasma (`[NULL]: failed to download`) y, como la instalación es "todo o nada", deshace también los paquetes que sí había instalado. Desactivando el modo transaccional se instalan todos, enlazados desde la caché de `renv`, sin descargar ni compilar nada:
+`renv` asocia la librería de paquetes a la ruta del proyecto. Si mueves o renombras la carpeta, al arrancar verás `One or more packages recorded in the lockfile are not installed` y errores como `there is no package called 'testthat'`. Se resuelve con:
 
 ```bash
-RENV_CONFIG_INSTALL_TRANSACTIONAL=FALSE Rscript -e 'renv::restore(prompt = FALSE)'
+Rscript -e 'renv::restore()'
 ```
 
-El aviso `[NULL]: failed to download` seguirá apareciendo y se puede ignorar. Comprueba el resultado con `Rscript -e 'renv::status()'`, que debe decir "No issues found".
+Los paquetes que ya están en la caché de `renv` se enlazan desde ahí, sin descargar ni compilar. Comprueba el resultado con `Rscript -e 'renv::status()'`, que debe decir "No issues found".
+
+> Hasta octubre de 2026, `renv.lock` tenía entradas `null` en las dependencias de nueve paquetes (`rstudioapi`, `rsconnect`, `httr2`…). `renv` las interpretaba como un paquete por descargar (`[NULL]: failed to download`) y, al fallar, deshacía toda la instalación. Si trabajas con una copia antigua del lockfile y ves ese error, actualízalo o ejecuta la restauración con `RENV_CONFIG_INSTALL_TRANSACTIONAL=FALSE`.
 
 [⬆ Volver arriba](#top)
 
@@ -369,6 +369,10 @@ Rscript -e 'testthat::test_file("tests/testthat/test_observatorio.R")'   # uno c
 
 Los tests cargan el código con `source()` desde `tests/testthat/`, así que se ejecutan sin instalar el paquete. Cada función de cálculo nueva debería llevar su test, con el patrón `test_that("descripción del comportamiento", { expect_*(...) })`.
 
+### Integración continua
+
+`.github/workflows/ci.yml` ejecuta los tests en GitHub en cada push y en cada pull request: instala R 4.3.3 y las librerías del sistema que necesitan `sf`, `terra` y `arrow`, restaura `renv.lock` (con binarios de Posit Package Manager y caché entre ejecuciones) y lanza `testthat::test_dir()`. El resultado se ve en la insignia **Tests** del README y en la pestaña *Actions* del repositorio.
+
 Para una validación completa del paquete (tests, `DESCRIPTION`, documentación y estructura):
 
 ```bash
@@ -383,7 +387,10 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 <a id="despliegue"></a>
 ## 8. Despliegue
 
-La app está desplegada en shinyapps.io: **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**. Se despliega con `scripts/deploy.R`.
+La app está desplegada en shinyapps.io: **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**. Se despliega de dos formas:
+
+- **A mano**: `Rscript scripts/deploy.R`, que sube los ficheros que haya en tu disco.
+- **Automática**: el job `despliegue` de `.github/workflows/ci.yml` ejecuta ese mismo script después de cada push a `main`, solo si los tests pasan. Necesita dos secretos en el repositorio (*Settings > Secrets and variables > Actions*): `SHINYAPPS_TOKEN` y `SHINYAPPS_SECRET`, que se obtienen en shinyapps.io en *Account > Tokens*. Sin ellos el job se omite sin dar error.
 
 Lecciones de los despliegues:
 
