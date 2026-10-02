@@ -24,6 +24,7 @@ app_ui <- function(request) {
         shinydashboard::sidebarMenu(
           # 1. EXPLORACIÓN
           shinydashboard::menuItem("Panel Principal", tabName = "panel", icon = icon("gauge")),
+          shinydashboard::menuItem("Observatorio España", tabName = "observatorio", icon = icon("landmark")),
           shinydashboard::menuItem("Explorador y Datos", icon = icon("compass"),
             shinydashboard::menuSubItem("Explorador de Datos", tabName = "tabla", icon = icon("table")),
             shinydashboard::menuSubItem("Análisis por Barrios", tabName = "barrios", icon = icon("city")),
@@ -69,6 +70,11 @@ app_ui <- function(request) {
             )
           ),
           
+          # 1b. Observatorio del Alquiler en España (SERPAVI + INE + Catastro)
+          shinydashboard::tabItem(tabName = "observatorio",
+            observatorioUI("observatorio_principal")
+          ),
+
           # 2. Análisis por Barrios
           shinydashboard::tabItem(tabName = "barrios",
             barriosUI("barrios_principal")
@@ -135,7 +141,8 @@ app_ui <- function(request) {
                 width = 12, status = "primary", solidHeader = TRUE,
                 h3("Inteligencia Inmobiliaria y Análisis Espacial"),
                 p("GeoAlquiler es una solución analítica integral desarrollada en R y Shiny para la exploración geográfica y económica del mercado de alquileres."),
-                p(strong("Fuente de los datos: "), "el precio por m² de cada zona procede de fuentes oficiales (SERPAVI del Ministerio de Vivienda, y los portales de datos abiertos de los ayuntamientos de Barcelona y Valencia). Los anuncios individuales que se muestran en el mapa son una ilustración de ese dato real, generada dentro de cada zona geolocalizada."),
+                p(strong("Fuente de los datos: "), "el precio por m² de cada zona procede de fuentes oficiales autonómicas (Generalitat de Catalunya, Generalitat Valenciana y Gobierno Vasco) o, donde no las hay, de anclas manuales documentadas. Los anuncios individuales que se muestran en el mapa son una ilustración de ese dato real, generada dentro de cada zona geolocalizada."),
+                p(strong("Observatorio del Alquiler: "), "cruza por municipio el Sistema Estatal de Referencia del Precio del Alquiler (SERPAVI, Ministerio de Vivienda), la renta media de los hogares y el padrón del INE, y el parque residencial del Catastro, todos del mismo año de referencia. País Vasco y Navarra no tienen datos de alquiler ni de Catastro estatal por su régimen foral."),
                 p(strong("Zonas marcadas como estimación: "), "en localidades donde no existe ninguna fuente oficial desagregada, el precio se fija a mano a partir de índices públicos y se revisa periódicamente; estos casos se señalan como estimados y no deben tratarse con la misma confianza que un dato oficial.")
               )
             )

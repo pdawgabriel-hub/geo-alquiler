@@ -28,6 +28,12 @@ app_server <- function(input, output, session) {
     stop("No se ha encontrado el archivo de datos ni en Parquet ni en RDS. Ejecuta tu script de generación de datos.")
   }
   
+  # Observatorio del Alquiler (SERPAVI + INE + Catastro, por municipio). Es
+  # opcional: si falta el fichero, solo esa pestaña muestra un aviso.
+  path_observatorio <- app_sys("app/data/observatorio_municipios.parquet")
+  if (path_observatorio == "") path_observatorio <- "inst/app/data/observatorio_municipios.parquet"
+  datos_observatorio <- if (file.exists(path_observatorio)) arrow::read_parquet(path_observatorio) else NULL
+
   # Estado reactivo global para guardar IDs de inmuebles favoritos
   favoritos_ids <- reactiveVal(c())
   
@@ -73,4 +79,5 @@ app_server <- function(input, output, session) {
   prediccionServer("prediccion_principal", datos_totales)
   barriosServer("barrios_principal", datos_totales)
   favoritosServer("fav_principal", datos_totales, favoritos_ids)
+  observatorioServer("observatorio_principal", datos_observatorio)
 }

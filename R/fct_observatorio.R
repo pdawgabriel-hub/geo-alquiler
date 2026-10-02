@@ -1,0 +1,100 @@
+# Lógica de negocio del Observatorio del Alquiler (sin dependencias de Shiny).
+# La usan tanto el módulo mod_observatorio.R como el pipeline de ingesta
+# (scripts/ingesta/09_observatorio.R), y se prueba en
+# tests/testthat/test_observatorio.R.
+
+#' Indicadores derivados del cruce SERPAVI + INE + Catastro
+#'
+#' Recibe una tabla municipal con las columnas de origen y devuelve la misma
+#' tabla con los indicadores calculados. Cualquier división entre un dato
+#' ausente o nulo devuelve NA (nunca Inf ni 0), para que el mapa lo pinte
+#' como "sin dato" en vez de como un extremo de la escala.
+#' @noRd
+calcular_indicadores_observatorio <- function(df) {
+  div <- function(a, b) ifelse(!is.na(a) & !is.na(b) & b > 0, a / b, NA_real_)
+
+  # % de la renta neta anual de un hogar medio que se iría en pagar el
+  # alquiler mediano del municipio (12 mensualidades).
+  df$esfuerzo_alquiler_pct <- round(100 * div(12 * df$alquiler_mes_mediana, df$renta_hogar), 1)
+
+  df$crecimiento_poblacion_pct <- round(100 * (div(df$poblacion_ultima, df$poblacion) - 1), 2)
+
+  # Viviendas con alquiler declarado (IRPF) sobre el parque residencial del
+  # Catastro. Es una aproximación al peso del alquiler: SERPAVI no incluye
+  # alquileres no declarados.
+  df$pct_viviendas_alquiler <- round(100 * div(df$viviendas_alquiler, df$inmuebles_residenciales), 1)
+
+  df$valor_catastral_medio <- round(div(1000 * df$valor_catastral_residencial_miles, df$inmuebles_residenciales))
+
+  df$viviendas_por_1000_hab <- round(1000 * div(df$inmuebles_residenciales, df$poblacion), 1)
+
+  df
+}
+
+#' Catálogo de indicadores que se pueden representar en el mapa
+#'
+#' `sentido` indica qué extremo de la escala es "peor" para quien busca
+#' alquiler: 1 = cuanto más alto, más tensión (rojo); 0 = neutro.
+#' @noRd
+indicadores_observatorio <- function() {
+  data.frame(
+    id = c("alquiler_m2_mediana", "alquiler_mes_mediana", "esfuerzo_alquiler_pct", "renta_hogar",
+           "pct_viviendas_alquiler", "valor_catastral_medio", "poblacion", "crecimiento_poblacion_pct"),
+    etiqueta = c("Alquiler mediano (€/m²)", "Alquiler mediano (€/mes)", "Esfuerzo de alquiler (% renta)",
+                 "Renta neta media por hogar (€)", "Viviendas en alquiler (% del parque)",
+                 "Valor catastral medio por inmueble residencial (€)", "Población",
+                 "Crecimiento de población (%)"),
+    fuente = c("SERPAVI", "SERPAVI", "SERPAVI + INE", "INE (ADRH)", "SERPAVI + Catastro",
+               "Catastro", "INE (Padrón)", "INE (Padrón)"),
+    sufijo = c(" €/m²", " €", " %", " €", " %", " €", "", " %"),
+    decimales = c(2, 0, 1, 0, 1, 0, 0, 2),
+    sentido = c(1, 1, 1, 0, 0, 0, 0, 0),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Formatea un valor de un indicador con su unidad (formato español)
+#' @noRd
+formatear_indicador <- function(valor, id) {
+  cat_ind <- indicadores_observatorio()
+  fila <- cat_ind[cat_ind$id == id, ]
+  if (nrow(fila) != 1) stop("Indicador desconocido: ", id)
+  ifelse(
+    is.na(valor),
+    "s/d",
+    paste0(
+      formatC(valor, format = "f", digits = fila$decimales, big.mark = ".", decimal.mark = ","),
+      fila$sufijo
+    )
+  )
+}
+
+#' Cortes por cuantiles para la escala de color del mapa
+#'
+#' Una escala lineal se "comería" casi todo el mapa con el mismo color, porque
+#' unos pocos municipios (Madrid, Barcelona, costa balear) tiran del máximo.
+#' Con cuantiles cada color agrupa un número parecido de municipios. Si hay
+#' muchos valores repetidos los cortes se deduplican, así que puede haber
+#' menos clases de las pedidas.
+#' @noRd
+cortes_cuantiles <- function(x, n_clases = 7) {
+  x <- x[!is.na(x)]
+  if (length(x) == 0) return(NULL)
+  cortes <- unique(stats::quantile(x, probs = seq(0, 1, length.out = n_clases + 1), names = FALSE, type = 7))
+  if (length(cortes) < 2) cortes <- c(min(x) - 0.5, max(x) + 0.5)
+  cortes
+}
+
+#' Reconstruye un objeto sf a partir de la tabla del observatorio guardada
+#' en Parquet. La geometría viene en WKB en dos niveles de detalle
+#' (`geometria` y `geometria_baja`, ver scripts/ingesta/09_observatorio.R);
+#' `columna` elige cuál usar y el resto de columnas WKB se descartan.
+#' @noRd
+observatorio_a_sf <- function(df, columna = "geometria") {
+  wkb <- df[[columna]]
+  if (is.null(wkb)) stop("La tabla del observatorio no tiene la columna de geometría '", columna, "'")
+  geom <- sf::st_as_sfc(structure(lapply(as.list(wkb), as.raw), class = "WKB"), crs = 4326)
+  df <- as.data.frame(df)
+  df[intersect(c("geometria", "geometria_baja"), names(df))] <- NULL
+  sf::st_sf(df, geometry = geom)
+}

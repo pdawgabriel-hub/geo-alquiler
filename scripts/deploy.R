@@ -17,6 +17,7 @@ archivos <- c(
   "app.R", ".Rprofile", "DESCRIPTION", "NAMESPACE", "renv.lock",
   list.files("R", pattern = "\\.R$", full.names = TRUE),
   "inst/app/data/alquileres.parquet",
+  "inst/app/data/observatorio_municipios.parquet",
   list.files("inst/app/www", full.names = TRUE)
 )
 

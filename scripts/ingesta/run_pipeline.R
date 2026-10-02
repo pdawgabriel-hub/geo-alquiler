@@ -10,9 +10,10 @@
 #
 # Uso (desde la raíz del proyecto geo-alquiler/):
 #   Rscript scripts/ingesta/run_pipeline.R
+#   Rscript scripts/ingesta/run_pipeline.R --solo-observatorio
 #
-# Requiere paquetes: httr, jsonlite, readxl, arrow (instálalos si hace falta
-# con install.packages(c("httr","jsonlite","readxl","arrow"))), y el binario
+# Requiere paquetes: httr, jsonlite, readxl, arrow, sf (instálalos si hace falta
+# con install.packages(c("httr","jsonlite","readxl","arrow","sf"))), y el binario
 # de sistema `pdftotext` (paquete poppler-utils) para la fuente de Bilbao.
 #
 # Las 3 URLs de fuentes reales (Barcelona, Valencia, Bilbao) están
@@ -28,9 +29,28 @@ if (length(directorio_script) == 1 && nzchar(directorio_script)) setwd(file.path
 fuentes <- c(
   "00_config.R", "01_utils.R", "02_fuente_barcelona.R", "03_fuente_valencia.R",
   "04_fuente_bilbao.R", "05_anclas_manuales.R", "06_geocodificar_zonas.R",
-  "07_armonizar_precios.R", "08_generar_anuncios.R"
+  "07_armonizar_precios.R", "08_generar_anuncios.R", "09_observatorio.R"
 )
+source(file.path("R", "fct_observatorio.R"))
 for (f in fuentes) source(file.path("scripts", "ingesta", f))
+
+# `--solo-observatorio` regenera únicamente el Observatorio del Alquiler, sin
+# volver a descargar/geocodificar las fuentes de los anuncios.
+solo_observatorio <- "--solo-observatorio" %in% commandArgs(trailingOnly = TRUE)
+
+guardar_observatorio <- function() {
+  observatorio <- generar_observatorio()
+  ruta <- file.path(RUTA_PROCESADOS, "observatorio_municipios.parquet")
+  arrow::write_parquet(observatorio, ruta)
+  file.copy(ruta, file.path(RUTA_APP_DATOS, "observatorio_municipios.parquet"), overwrite = TRUE)
+  message("  Guardado en ", ruta, " (", round(file.size(ruta) / 1024^2, 1), " MB) y copiado a ", RUTA_APP_DATOS, "/")
+}
+
+if (solo_observatorio) {
+  guardar_observatorio()
+  message("== Pipeline (solo observatorio) completado ==")
+  quit(save = "no")
+}
 
 message("== 1/5: Descargando y parseando Barcelona (INCASÒL / Generalitat de Catalunya) ==")
 ruta_bcn <- descargar_barcelona()
@@ -69,5 +89,12 @@ if (requireNamespace("arrow", quietly = TRUE)) {
 } else {
   warning("Paquete 'arrow' no instalado: se ha guardado solo el .rds. Instala arrow y vuelve a ejecutar para generar el .parquet que usa la app.")
 }
+
+message("== Observatorio del Alquiler (SERPAVI + INE + Catastro) ==")
+# Un fallo aquí no invalida el dataset de anuncios ya guardado arriba.
+tryCatch(guardar_observatorio(), error = function(e) {
+  warning("No se ha podido regenerar el Observatorio del Alquiler: ", conditionMessage(e),
+          ". La app seguirá usando el observatorio_municipios.parquet anterior.")
+})
 
 message("== Pipeline completado ==")

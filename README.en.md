@@ -20,6 +20,7 @@
   - [1. Spatial Exploration](#spatial-exploration)
   - [2. Analytics & Machine Learning](#analytics-ml)
   - [3. Investment Tools](#investment-tools)
+  - [4. Spain Rental Observatory](#observatory)
 - [Performance & Responsive Design](#performance-responsive)
 - [Screenshots](#screenshots)
 - [Project Structure (`{golem}`)](#project-structure)
@@ -43,12 +44,14 @@
 - What would be a "fair" market price for a property with a given set of characteristics?
 - Which listings in the dataset stand out as investment opportunities compared to the rest of the market?
 - What would be the estimated return and cash flow if I buy a specific property to rent it out?
+- In which Spanish municipalities does rent take the largest share of household income?
 
-To achieve this, GeoAlquiler is built on three pillars:
+To achieve this, GeoAlquiler is built on three pillars, plus a nationwide observatory:
 
 1. **Spatial Exploration** — visualize and filter the property stock on an interactive map.
 2. **Analytics & Machine Learning** — extract patterns, generate price predictions, and recommend similar properties.
 3. **Investment Tools** — turn the data into concrete buy/rent decisions through calculators and comparisons.
+4. **Spain Rental Observatory** — a choropleth map of Spain's ~8,200 municipalities that cross-references the Ministry of Housing's official rental index (SERPAVI) with INE income and population data and the Cadastre's housing stock.
 
 The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics). Per-zone prices come from real sources (Generalitat de Catalunya, Generalitat Valenciana, Basque Government) or, where no official source exists, from published indices documented by hand (see `scripts/ingesta/`).
 
@@ -59,7 +62,7 @@ The project is designed as a **technical portfolio piece**, demonstrating master
 <a id="key-features"></a>
 ## Key Features / Modules
 
-The application is organized into three functional blocks, directly reflected in the interface's navigation (`sidebarMenu`), plus an informational section:
+The application is organized into three functional blocks, directly reflected in the interface's navigation (`sidebarMenu`), plus the Rental Observatory (its own menu entry, right below the Main Dashboard) and an informational section:
 
 <a id="spatial-exploration"></a>
 ### 1. Spatial Exploration
@@ -94,6 +97,31 @@ The application is organized into three functional blocks, directly reflected in
 | **Profitability Calculator** (`mod_calculadora`) | Complete financial calculator: gross/net yield, mortgage amortization, and cash flow projection based on purchase price, estimated rent, and maintenance costs. |
 | **Executive Report** (`mod_reporte`) | Generation and download of a report (based on the `reporte_plantilla.Rmd` template) with the market's key metrics and the filtered listings, ready to share or print. |
 
+<a id="observatory"></a>
+### 4. Spain Rental Observatory
+
+| Module | Description |
+|---|---|
+| **Spain Observatory** (`mod_observatorio`) | Municipal choropleth map of all of Spain (or a single province) with 8 selectable indicators, KPIs for the selected area, a profile card for each municipality showing its national percentile on every indicator, an income vs. rent €/m² bubble chart (size = population, color = rent burden), and a municipality ranking. A municipality can be selected from the map, the chart, or the ranking, and all three views stay in sync. |
+
+Unlike the rest of the app (which works with illustrative listings for 5 cities), the observatory uses **only official aggregate data**, joined by INE municipality code and **all referring to the same year (2022)**, so ratios between sources compare the same period:
+
+| Indicator | Source | Calculation |
+|---|---|---|
+| Median rent (€/m² and €/month) | SERPAVI — Ministry of Housing and Urban Agenda | Median of rental contracts declared in personal income tax returns (apartment buildings) |
+| Rent burden (% of income) | SERPAVI + INE | 12 × median monthly rent / average net household income |
+| Average net household income | INE — Household Income Distribution Atlas (ADRH) | Direct value |
+| Rented homes (% of housing stock) | SERPAVI + Cadastre | Homes with declared rental income / residential-use properties |
+| Average cadastral value per residential property | Cadastre — Urban Real Estate Cadastre statistics | Residential cadastral value / number of residential properties |
+| Population and population growth | INE — Municipal Register (Padrón) | 2022 population and change from 2022 to the latest published year |
+
+Limitations the app itself points out:
+
+- **The Basque Country and Navarre** are not in SERPAVI or the national Cadastre (they have their own regional tax and cadastre authorities), so their municipalities only have income and population.
+- SERPAVI only publishes the median for municipalities with enough declared contracts (2,217 of 8,131), which together hold 88% of the population. The rest are shown in grey ("Sin dato" / no data).
+- "Rented homes" counts **rentals declared** to the tax agency, so it's a lower bound on the real share of renting.
+- The Cadastre doesn't publish the INE code in its municipal tables, so they're matched by normalized name within each province (99.5% match rate; the ~40 left over are renamed municipalities, e.g. Castrillo Matajudíos → Castrillo Mota de Judíos).
+
 [⬆ Back to top](#top)
 
 ---
@@ -112,6 +140,9 @@ GeoAlquiler is meant to be used on both desktop and mobile — not just adapting
 | **Clustering on marker-heavy maps** | The Opportunities map clusters (`markerClusterOptions`) its markers instead of drawing them all individually, so a loose threshold (hundreds of matches) doesn't overwhelm the browser. |
 | **Custom responsive CSS** (`inst/app/www/custom.css`) | Adjusts the (otherwise fixed-pixel) heights of the Leaflet/Plotly widgets, the map's layer control, and the `DT` table controls across screen widths, with `scrollX` enabled on every table so columns that don't fit can be scrolled instead of being cut off. |
 | **Minimal JS for mobile UX** (`inst/app/www/custom.js`) | The shinydashboard sidebar closes itself automatically after navigating to a tab on narrow screens, instead of staying open on top of the content. |
+| **Two levels of detail in the Observatory's geometry** | The pipeline stores the municipal polygons simplified at two tolerances: ~1.5 km for the all-of-Spain view (at zoom 5-6 one pixel is already ~2 km) and ~250 m for when a single province is selected. The national view goes from ~260,000 to ~90,000 vertices. |
+| **Recoloring in the browser instead of resending polygons** | When the Observatory's indicator changes, only each municipality's color and label change, not its shape. A small JS handler (`custom.js`) recolors the already-drawn polygons by INE code, so the change sends ~200 KB instead of resending all ~8,000 polygons. |
+| **Per-process cache of the serialized geometry** | Converting ~8,000 polygons into Leaflet's format and serializing them to JSON costs ~5 s of CPU in R. The result is cached per area (Spain / each province) in the server process, so only the first session pays for it: locally, the national view drops from ~12.5 s to ~5.7 s for later sessions. The map also uses Leaflet's canvas renderer (`preferCanvas`), much lighter than SVG with thousands of polygons. |
 | **API-key-free base maps** | Uses OpenStreetMap as the default base layer (CartoDB's Positron/DarkMatter maps now require an API key on their free tier). |
 
 [⬆ Back to top](#top)
@@ -121,7 +152,7 @@ GeoAlquiler is meant to be used on both desktop and mobile — not just adapting
 <a id="screenshots"></a>
 ## Screenshots
 
-Below are the application's main screens, organized by the same three functional blocks as the navigation. Replace each placeholder with your own screenshot following the guide in the next section.
+Below are the application's main screens, organized by the same functional blocks as the navigation. Replace each placeholder with your own screenshot following the guide in the next section.
 
 ### Spatial Exploration
 
@@ -153,6 +184,12 @@ Below are the application's main screens, organized by the same three functional
 |---|---|
 | ![Profitability Calculator](man/figures/calculadora-rentabilidad.png) | ![Executive Report](man/figures/informe-ejecutivo.png) |
 
+### Spain Rental Observatory
+
+| Observatory (rent €/m² by municipality, Madrid profile card) |
+|---|
+| ![Spain Rental Observatory](man/figures/observatorio-alquiler.png) |
+
 ---
 
 <a id="project-structure"></a>
@@ -181,10 +218,12 @@ geo-alquiler/
 │   ├── mod_comparador.R     # Module: A/B comparator
 │   ├── mod_oportunidades.R  # Module: opportunity detector
 │   ├── mod_calculadora.R    # Module: profitability calculator
-│   └── mod_reporte.R        # Module: downloadable executive report
+│   ├── mod_reporte.R        # Module: downloadable executive report
+│   ├── mod_observatorio.R   # Module: Spain Rental Observatory (choropleth map)
+│   └── fct_observatorio.R   # Observatory logic without Shiny (indicators, formatting, WKB -> sf)
 ├── inst/
 │   └── app/
-│       ├── data/           # Data bundled with the app (e.g. alquileres.parquet)
+│       ├── data/           # Data bundled with the app (alquileres.parquet, observatorio_municipios.parquet)
 │       └── www/            # Responsive CSS/JS (custom.css, custom.js) -- see "Performance & Responsive Design"
 ├── man/
 │   └── figures/            # Screenshots used in this README
@@ -201,6 +240,7 @@ geo-alquiler/
 │       ├── 06_geocodificar_zonas.R  # Real lat/lon per zone
 │       ├── 07_armonizar_precios.R   # Combines all sources into a single table
 │       ├── 08_generar_anuncios.R    # Generates the individual listings the app uses
+│       ├── 09_observatorio.R        # Observatory: SERPAVI + INE (income, register) + Cadastre by municipality
 │       └── run_pipeline.R           # Orchestrator: Rscript scripts/ingesta/run_pipeline.R
 ├── data/raw/
 │   └── anclas_manuales.csv        # Hand-documented prices (cities without an official source)
@@ -210,7 +250,8 @@ geo-alquiler/
 │   └── testthat/
 │       ├── test_calculos.R        # Calculation logic tests (price/m², KPIs, etc.)
 │       ├── test_mod_tabla.R       # Tests for the table module
-│       └── test_tabla.R           # Additional table/data tests
+│       ├── test_tabla.R           # Additional table/data tests
+│       └── test_observatorio.R    # Observatory tests (indicators, name matching, module)
 ├── renv.lock                      # renv lockfile (dependency reproducibility)
 └── geo-alquiler.Rproj             # RStudio project
 ```
@@ -274,6 +315,25 @@ If a source changes format or URL, the corresponding script stops with an explic
 
 Individual "listings" are an illustration generated within each geolocated zone (surface, type, and a random noise margin), but each one's price **always starts from its zone's real €/m²** — never from a number invented from scratch.
 
+### Rental Observatory (SERPAVI + INE + Cadastre)
+
+The Observatory uses a second file, `inst/app/data/observatorio_municipios.parquet` (~4.7 MB, one row per municipality with its geometry as WKB), generated by `scripts/ingesta/09_observatorio.R`:
+
+| Source | What's downloaded | How |
+|---|---|---|
+| **SERPAVI** (Ministry of Housing and Urban Agenda) | Municipal layer with median rents (€/m², €/month, surface area, number of homes) and each municipality's geometry (IGN) | The SERPAVI website is a reCAPTCHA-protected calculator (which is why it isn't used for the listings), but the Ministry's CDN publishes the full layer as a shapefile (`ALQ_Municipios_2022_Web.zip`, ~43 MB) |
+| **INE — ADRH** | Average net income per household and per person | National table 30824 (~350 MB uncompressed, with every census tract): downloaded compressed and stream-filtered to the municipality rows for the reference year, caching only that extract |
+| **INE — Padrón** | Population by municipality | Table 29005 (official figures for every municipality and year) |
+| **Cadastre** (Directorate General for Cadastre) | Number of properties and cadastral value for residential use | Per-province municipal JAXI tables (`URAO`/`URBO`); there's no direct `.px` download, so the pipeline replays the "Consultar todo" form submission and parses the HTML table |
+
+To regenerate it without re-downloading or re-geocoding the listings' sources:
+
+```bash
+Rscript scripts/ingesta/run_pipeline.R --solo-observatorio
+```
+
+The common reference year lives in `ANIO_OBSERVATORIO` (`scripts/ingesta/00_config.R`). Downloads are cached in `data/raw/observatorio/` (not versioned, ~100 MB). If a source changes format, the corresponding step stops with an error describing what it found; an Observatory failure during the full pipeline doesn't invalidate the listings dataset already saved.
+
 [⬆ Back to top](#top)
 
 ---
@@ -299,6 +359,8 @@ Individual "listings" are an illustration generated within each geolocated zone 
 | [`leaflet`](https://cran.r-project.org/package=leaflet) / [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras) | Interactive map and heatmap layer |
 | [`DT`](https://cran.r-project.org/package=DT) | Interactive data tables |
 | [`plotly`](https://cran.r-project.org/package=plotly) | Interactive visual analytics charts |
+| [`sf`](https://cran.r-project.org/package=sf) | The Observatory's municipal geometry (reading the WKB stored in Parquet) |
+| [`jsonlite`](https://cran.r-project.org/package=jsonlite) / [`htmltools`](https://cran.r-project.org/package=htmltools) | Cached serialization of the Observatory's geometry and HTML labels |
 
 On top of this, `{testthat}` is used as a development dependency for the test suite, and `{renv}` for version control of all dependencies. You'll also need `{roxygen2}` installed to generate the package's `NAMESPACE` file (see step 4 of the installation) — without it, the application **won't start correctly**, since `NAMESPACE` is what tells R which functions from `shiny`, `leaflet`, `DT`, etc. should be made available to the app's code.
 
@@ -308,7 +370,8 @@ On top of this, `{testthat}` is used as a development dependency for the test su
 |---|---|
 | `{httr}` | Downloading the sources (Suggests in `DESCRIPTION`) |
 | `{readxl}` | Reading Barcelona's Excel file (Suggests) |
-| `{jsonlite}` | Geocoding via Nominatim (Suggests) |
+| `{jsonlite}` | Geocoding via Nominatim (already in Imports, the app uses it too) |
+| `{sf}` | Reading and simplifying the SERPAVI shapefile (already in Imports) |
 | `pdftotext` (`poppler-utils` system package) | Extracting text from Bilbao's quarterly report. On Linux: `sudo apt install poppler-utils` |
 
 The app itself **needs none of this** to start: it ships with the dataset already generated at `inst/app/data/alquileres.parquet`.
@@ -501,7 +564,7 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 <a id="testing-quality"></a>
 ## Testing & Quality
 
-GeoAlquiler includes a suite of **unit tests** with **[`{testthat}`](https://testthat.r-lib.org/)**, following the standard structure of an R package (`tests/testthat/`). The current tests cover, among other things, the logic behind metric calculations (e.g., price per m²) and the safe behavior of KPIs when given empty datasets, as well as the table module.
+GeoAlquiler includes a suite of **unit tests** with **[`{testthat}`](https://testthat.r-lib.org/)**, following the standard structure of an R package (`tests/testthat/`). The current tests cover, among other things, the logic behind metric calculations (e.g., price per m²) and the safe behavior of KPIs when given empty datasets, the table module, and the Observatory (`test_observatorio.R`: derived indicators and how they handle missing data, Spanish number formatting, quantile breaks, geometry reconstruction, normalizing and matching municipality names across INE/Cadastre/IGN, parsing the Cadastre tables, and the module itself with `testServer`).
 
 ### Run all tests
 
@@ -552,6 +615,7 @@ Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the 
 - **`shiny.autoload.r`**: on shinyapps.io/Posit Connect, the mere presence of an `R/` folder next to `app.R` makes Shiny auto-load it as "helper files" **before** `app.R` even runs (setting this option there is too late). That's why `.Rprofile` sets `options(shiny.autoload.r = FALSE)` — if the error `Error in box: plot.new has not been called yet` reappears, this option isn't being applied in time.
 - Remember to run `renv::snapshot()` (or `renv::record()` for a specific package) before deploying, so `renv.lock` reflects exactly what the server needs.
 - Refresh the data periodically by running `Rscript scripts/ingesta/run_pipeline.R` (see [Data Source](#data-source)) before each deployment, since the official sources update on their own schedule (quarterly in Bilbao's case).
+- `scripts/deploy.R` lists the uploaded files by hand: it includes `inst/app/data/observatorio_municipios.parquet`. If you add another data file, add it there too or it won't reach the server (the app still starts, and the Observatory shows a notice if its file is missing).
 
 [⬆ Back to top](#top)
 

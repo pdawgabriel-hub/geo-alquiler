@@ -20,6 +20,7 @@
   - [1. Exploración Espacial](#exploracion-espacial)
   - [2. Analítica & Machine Learning](#analitica-ml)
   - [3. Herramientas de Inversión](#herramientas-inversion)
+  - [4. Observatorio del Alquiler en España](#observatorio)
 - [Rendimiento y Diseño Responsive](#rendimiento-responsive)
 - [Capturas de Pantalla](#capturas-pantalla)
 - [Estructura del Proyecto (`{golem}`)](#estructura-proyecto)
@@ -43,12 +44,14 @@
 - ¿Cuál sería el precio "justo" de mercado para un inmueble con unas características determinadas?
 - ¿Qué inmuebles del dataset destacan como oportunidades de inversión frente al resto del mercado?
 - ¿Cuál sería la rentabilidad y el cash flow estimado si compro un inmueble concreto para alquilarlo?
+- ¿En qué municipios de España se va una parte mayor de la renta de los hogares en pagar el alquiler?
 
-Para lograrlo, GeoAlquiler se apoya en tres pilares:
+Para lograrlo, GeoAlquiler se apoya en tres pilares, más un observatorio a escala nacional:
 
 1. **Exploración Espacial** — visualizar y filtrar el parque de inmuebles sobre un mapa interactivo.
 2. **Analítica & Machine Learning** — extraer patrones, generar predicciones de precio y recomendar inmuebles similares.
 3. **Herramientas de Inversión** — traducir los datos en decisiones concretas de compra/alquiler mediante calculadoras y comparativas.
+4. **Observatorio del Alquiler en España** — mapa coroplético de los ~8.200 municipios que cruza el índice oficial de alquiler del Ministerio de Vivienda (SERPAVI) con la renta y la población del INE y el parque residencial del Catastro.
 
 El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los precios por zona proceden de fuentes reales (Generalitat de Catalunya, Generalitat Valenciana, Gobierno Vasco) o, donde no existe fuente oficial, de índices publicados documentados a mano (ver `scripts/ingesta/`).
 
@@ -59,7 +62,7 @@ El proyecto está pensado como pieza de **portfolio técnico**, demostrando domi
 <a id="caracteristicas-principales"></a>
 ## Características Principales / Módulos
 
-La aplicación está organizada en tres bloques funcionales, reflejados directamente en la navegación de la interfaz (`sidebarMenu`), más una sección informativa:
+La aplicación está organizada en tres bloques funcionales, reflejados directamente en la navegación de la interfaz (`sidebarMenu`), más el Observatorio del Alquiler (entrada propia en el menú, justo debajo del Panel Principal) y una sección informativa:
 
 <a id="exploracion-espacial"></a>
 ### 1. Exploración Espacial
@@ -94,6 +97,31 @@ La aplicación está organizada en tres bloques funcionales, reflejados directam
 | **Calculadora de Rentabilidad** (`mod_calculadora`) | Calculadora financiera completa: rentabilidad bruta/neta, amortización hipotecaria y proyección de cash flow a partir del precio de compra, alquiler estimado y gastos de mantenimiento. |
 | **Informe Ejecutivo** (`mod_reporte`) | Generación y descarga de un informe (a partir de la plantilla `reporte_plantilla.Rmd`) con los métricos clave del mercado y los inmuebles filtrados, listo para compartir o imprimir. |
 
+<a id="observatorio"></a>
+### 4. Observatorio del Alquiler en España
+
+| Módulo | Descripción |
+|---|---|
+| **Observatorio España** (`mod_observatorio`) | Mapa coroplético municipal de toda España (o de una provincia) con 8 indicadores seleccionables, KPIs del ámbito, ficha de cada municipio con su percentil nacional en cada indicador, gráfico de burbujas renta vs. alquiler €/m² (tamaño = población, color = esfuerzo) y ranking de municipios. Se puede seleccionar un municipio desde el mapa, el gráfico o el ranking, y las tres vistas se sincronizan. |
+
+A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciudades), el observatorio usa **solo datos agregados oficiales**, cruzados por código INE de municipio y **todos referidos al mismo año (2022)**, para que los ratios entre fuentes comparen el mismo ejercicio:
+
+| Indicador | Fuente | Cálculo |
+|---|---|---|
+| Alquiler mediano (€/m² y €/mes) | SERPAVI — Ministerio de Vivienda y Agenda Urbana | Mediana de los contratos de alquiler declarados en el IRPF (vivienda colectiva) |
+| Esfuerzo de alquiler (% renta) | SERPAVI + INE | 12 × alquiler mensual mediano / renta neta media por hogar |
+| Renta neta media por hogar | INE — Atlas de Distribución de Renta de los Hogares | Dato directo |
+| Viviendas en alquiler (% del parque) | SERPAVI + Catastro | Viviendas con alquiler declarado / inmuebles de uso residencial |
+| Valor catastral medio por inmueble residencial | Catastro — estadística del Catastro Inmobiliario Urbano | Valor catastral residencial / nº de inmuebles residenciales |
+| Población y crecimiento de población | INE — Padrón municipal | Población 2022 y variación 2022 → último año publicado |
+
+Limitaciones que la propia app indica:
+
+- **País Vasco y Navarra** no aparecen en SERPAVI ni en el Catastro estatal (tienen Hacienda y Catastro forales), así que sus municipios solo tienen renta y población.
+- SERPAVI publica la mediana solo en los municipios con suficientes contratos declarados (2.217 de 8.131), que concentran el 88 % de la población. El resto se pinta en gris ("Sin dato").
+- "Viviendas en alquiler" cuenta **alquileres declarados** a Hacienda, así que es una cota inferior del peso real del alquiler.
+- El Catastro no publica el código INE en sus tablas municipales: se cruza por nombre normalizado dentro de cada provincia (99,5 % de acierto; los ~40 restantes son municipios renombrados, como Castrillo Matajudíos → Castrillo Mota de Judíos).
+
 [⬆ Volver arriba](#top)
 
 ---
@@ -112,6 +140,9 @@ GeoAlquiler está pensado para usarse tanto en escritorio como en el móvil, no 
 | **Clustering en mapas con muchos marcadores** | El mapa de Oportunidades agrupa (`markerClusterOptions`) los marcadores en vez de pintarlos todos sueltos, evitando que un umbral poco restrictivo (cientos de resultados) sature el navegador. |
 | **CSS responsive propio** (`inst/app/www/custom.css`) | Ajusta a distintos anchos de pantalla las alturas de los widgets de Leaflet/Plotly (fijas en píxeles por defecto), el control de capas del mapa y los controles de `DT`, con `scrollX` activado en todas las tablas para que las columnas que no caben se puedan desplazar en vez de quedar cortadas. |
 | **JS mínimo para UX móvil** (`inst/app/www/custom.js`) | El sidebar de `shinydashboard` se cierra automáticamente al navegar a una pestaña en pantallas estrechas, en vez de quedarse superpuesto tapando el contenido. |
+| **Dos niveles de detalle en la geometría del Observatorio** | El pipeline guarda los polígonos municipales simplificados a dos tolerancias: ~1,5 km para la vista de toda España (a zoom 5-6 un píxel ya son ~2 km) y ~250 m para cuando se filtra una provincia. La vista nacional pasa de ~260.000 a ~90.000 vértices. |
+| **Recolorear en el navegador en vez de reenviar polígonos** | Al cambiar de indicador en el Observatorio solo cambian el color y la etiqueta de cada municipio, no su forma. Un pequeño manejador JS (`custom.js`) recolorea los polígonos ya pintados a partir de su código INE, así que el cambio envía ~200 KB en vez de volver a mandar los ~8.000 polígonos. |
+| **Geometría serializada en caché por proceso** | Convertir los ~8.000 polígonos al formato de Leaflet y serializarlos a JSON cuesta ~5 s de CPU en R. El resultado se cachea por ámbito (España / cada provincia) en el proceso del servidor, así que solo lo paga la primera sesión: en local, la vista nacional baja de ~12,5 s a ~5,7 s para las siguientes. El mapa usa además el renderizador canvas de Leaflet (`preferCanvas`), mucho más ligero que SVG con miles de polígonos. |
 | **Mapas base sin clave de API** | Usa OpenStreetMap como capa base por defecto (los mapas Positron/DarkMatter de CartoDB ahora exigen API key en su plan gratuito). |
 
 [⬆ Volver arriba](#top)
@@ -121,7 +152,7 @@ GeoAlquiler está pensado para usarse tanto en escritorio como en el móvil, no 
 <a id="capturas-pantalla"></a>
 ## Capturas de Pantalla
 
-A continuación se muestran las pantallas principales de la aplicación, organizadas por los mismos tres bloques funcionales que la navegación.
+A continuación se muestran las pantallas principales de la aplicación, organizadas por los mismos bloques funcionales que la navegación.
 
 ### Exploración Espacial
 
@@ -153,6 +184,12 @@ A continuación se muestran las pantallas principales de la aplicación, organiz
 |---|---|
 | ![Calculadora de Rentabilidad](man/figures/calculadora-rentabilidad.png) | ![Informe Ejecutivo](man/figures/informe-ejecutivo.png) |
 
+### Observatorio del Alquiler en España
+
+| Observatorio (alquiler €/m² por municipio, ficha de Madrid) |
+|---|
+| ![Observatorio del Alquiler en España](man/figures/observatorio-alquiler.png) |
+
 ---
 
 <a id="estructura-proyecto"></a>
@@ -181,10 +218,12 @@ geo-alquiler/
 │   ├── mod_comparador.R     # Módulo: comparador A/B
 │   ├── mod_oportunidades.R  # Módulo: detector de oportunidades
 │   ├── mod_calculadora.R    # Módulo: calculadora de rentabilidad
-│   └── mod_reporte.R        # Módulo: informe ejecutivo descargable
+│   ├── mod_reporte.R        # Módulo: informe ejecutivo descargable
+│   ├── mod_observatorio.R   # Módulo: Observatorio del Alquiler en España (mapa coroplético)
+│   └── fct_observatorio.R   # Lógica del observatorio sin Shiny (indicadores, formato, WKB -> sf)
 ├── inst/
 │   └── app/
-│       ├── data/           # Datos empaquetados con la app (p. ej. alquileres.parquet)
+│       ├── data/           # Datos empaquetados con la app (alquileres.parquet, observatorio_municipios.parquet)
 │       └── www/            # CSS/JS responsive (custom.css, custom.js) -- ver "Rendimiento y Diseño Responsive"
 ├── man/
 │   └── figures/            # Capturas de pantalla usadas en este README
@@ -201,6 +240,7 @@ geo-alquiler/
 │       ├── 06_geocodificar_zonas.R  # Lat/lon reales por zona
 │       ├── 07_armonizar_precios.R   # Combina todas las fuentes en una tabla única
 │       ├── 08_generar_anuncios.R    # Genera los inmuebles individuales que usa la app
+│       ├── 09_observatorio.R        # Observatorio: SERPAVI + INE (renta, padrón) + Catastro por municipio
 │       └── run_pipeline.R           # Orquestador: Rscript scripts/ingesta/run_pipeline.R
 ├── data/raw/
 │   └── anclas_manuales.csv        # Precios documentados a mano (ciudades sin fuente oficial)
@@ -210,7 +250,8 @@ geo-alquiler/
 │   └── testthat/
 │       ├── test_calculos.R        # Tests de lógica de cálculo (precio/m², KPIs, etc.)
 │       ├── test_mod_tabla.R       # Tests del módulo de tabla
-│       └── test_tabla.R           # Tests adicionales de tabla/datos
+│       ├── test_tabla.R           # Tests adicionales de tabla/datos
+│       └── test_observatorio.R    # Tests del observatorio (indicadores, cruce de nombres, módulo)
 ├── renv.lock                      # Lockfile de renv (reproducibilidad de dependencias)
 └── geo-alquiler.Rproj             # Proyecto de RStudio
 ```
@@ -274,6 +315,25 @@ Si alguna fuente cambia de formato o de URL, el script correspondiente se detien
 
 Los "anuncios" individuales son una ilustración generada dentro de cada zona geolocalizada (superficie, tipología y un margen de ruido aleatorio), pero el precio de cada uno **siempre parte del precio/m² real de su zona** — nunca de un número inventado desde cero.
 
+### Observatorio del Alquiler (SERPAVI + INE + Catastro)
+
+El Observatorio usa un segundo fichero, `inst/app/data/observatorio_municipios.parquet` (~4,7 MB, una fila por municipio con su geometría en WKB), generado por `scripts/ingesta/09_observatorio.R`:
+
+| Fuente | Qué se descarga | Cómo |
+|---|---|---|
+| **SERPAVI** (Ministerio de Vivienda y Agenda Urbana) | Capa municipal con medianas de alquiler (€/m², €/mes, superficie, nº de viviendas) y la geometría de cada municipio (IGN) | La web de SERPAVI es una calculadora con reCAPTCHA (por eso no se usa para los anuncios), pero el CDN del Ministerio publica la capa completa como shapefile (`ALQ_Municipios_2022_Web.zip`, ~43 MB) |
+| **INE — ADRH** | Renta neta media por hogar y por persona | Tabla nacional 30824 (~350 MB sin comprimir, con todas las secciones censales): se descarga comprimida y se filtra en streaming a las filas de municipio del año de referencia, cacheando solo ese extracto |
+| **INE — Padrón** | Población por municipio | Tabla 29005 (cifras oficiales de todos los municipios y años) |
+| **Catastro** (Dirección General del Catastro) | Nº de inmuebles y valor catastral de uso residencial | Tablas JAXI municipales por provincia (`URAO`/`URBO`); no hay descarga directa del `.px`, así que se reproduce el envío del formulario "Consultar todo" y se parsea la tabla HTML |
+
+Para regenerarlo sin volver a descargar ni geocodificar las fuentes de los anuncios:
+
+```bash
+Rscript scripts/ingesta/run_pipeline.R --solo-observatorio
+```
+
+El año de referencia común está en `ANIO_OBSERVATORIO` (`scripts/ingesta/00_config.R`). Las descargas se cachean en `data/raw/observatorio/` (no versionado, ~100 MB). Si una fuente cambia de formato, el paso correspondiente se detiene con un error que indica qué ha encontrado; un fallo del observatorio dentro del pipeline completo no invalida el dataset de anuncios ya guardado.
+
 [⬆ Volver arriba](#top)
 
 ---
@@ -299,6 +359,8 @@ Los "anuncios" individuales son una ilustración generada dentro de cada zona ge
 | [`leaflet`](https://cran.r-project.org/package=leaflet) / [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras) | Mapa interactivo y capa de calor (heatmap) |
 | [`DT`](https://cran.r-project.org/package=DT) | Tablas de datos interactivas |
 | [`plotly`](https://cran.r-project.org/package=plotly) | Gráficos interactivos de analítica visual |
+| [`sf`](https://cran.r-project.org/package=sf) | Geometría municipal del Observatorio (lectura del WKB guardado en Parquet) |
+| [`jsonlite`](https://cran.r-project.org/package=jsonlite) / [`htmltools`](https://cran.r-project.org/package=htmltools) | Serialización en caché de la geometría del Observatorio y etiquetas HTML |
 
 A esto se suma `{testthat}` como dependencia de desarrollo para la suite de tests, y `{renv}` para el control de versiones de todas las dependencias. Además, necesitas `{roxygen2}` instalado para generar el archivo `NAMESPACE` del paquete (ver paso 4 de la instalación) — sin él, la aplicación **no arranca correctamente**, ya que `NAMESPACE` es lo que le indica a R qué funciones de `shiny`, `leaflet`, `DT`, etc. debe poner a disposición del código de la app.
 
@@ -308,7 +370,8 @@ A esto se suma `{testthat}` como dependencia de desarrollo para la suite de test
 |---|---|
 | `{httr}` | Descarga de las fuentes (Suggests en `DESCRIPTION`) |
 | `{readxl}` | Lectura del Excel de Barcelona (Suggests) |
-| `{jsonlite}` | Geocodificación vía Nominatim (Suggests) |
+| `{jsonlite}` | Geocodificación vía Nominatim (ya en Imports, lo usa también la app) |
+| `{sf}` | Lectura y simplificación del shapefile de SERPAVI (ya en Imports) |
 | `pdftotext` (paquete de sistema `poppler-utils`) | Extraer texto del informe trimestral de Bilbao. En Linux: `sudo apt install poppler-utils` |
 
 La app en sí **no necesita nada de esto** para arrancar: viaja con el dataset ya generado en `inst/app/data/alquileres.parquet`.
@@ -501,7 +564,7 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 <a id="testing-calidad"></a>
 ## Testing & Calidad
 
-GeoAlquiler incluye una suite de **pruebas unitarias** con **[`{testthat}`](https://testthat.r-lib.org/)**, siguiendo la estructura estándar de un paquete de R (`tests/testthat/`). Las pruebas actuales cubren, entre otros aspectos, la lógica de cálculo de métricas (p. ej. precio por m²) y el comportamiento seguro de los KPIs ante conjuntos de datos vacíos, así como el módulo de tabla.
+GeoAlquiler incluye una suite de **pruebas unitarias** con **[`{testthat}`](https://testthat.r-lib.org/)**, siguiendo la estructura estándar de un paquete de R (`tests/testthat/`). Las pruebas actuales cubren, entre otros aspectos, la lógica de cálculo de métricas (p. ej. precio por m²) y el comportamiento seguro de los KPIs ante conjuntos de datos vacíos, el módulo de tabla y el Observatorio (`test_observatorio.R`: indicadores derivados y su manejo de datos ausentes, formato numérico español, cortes por cuantiles, reconstrucción de la geometría, normalización y cruce de nombres de municipio entre INE/Catastro/IGN, parseo de las tablas del Catastro, y el módulo con `testServer`).
 
 ### Ejecutar todos los tests
 
@@ -552,6 +615,7 @@ Al estar construido como paquete `{golem}` con un lanzador (`app.R`) desacoplado
 - **`shiny.autoload.r`**: en shinyapps.io/Posit Connect, la sola presencia de una carpeta `R/` junto a `app.R` hace que Shiny la autocargue como "ficheros de apoyo" **antes** de que se ejecute `app.R` (donde poner esta opción llega tarde). Por eso `.Rprofile` fija `options(shiny.autoload.r = FALSE)` — si el error `Error in box: plot.new has not been called yet` reaparece, es que esta opción no se está aplicando a tiempo.
 - Recuerda ejecutar `renv::snapshot()` (o `renv::record()` para un paquete concreto) antes de desplegar, para que `renv.lock` refleje exactamente lo que necesita el servidor.
 - Refresca los datos periódicamente con `Rscript scripts/ingesta/run_pipeline.R` (ver [Fuente de los Datos](#fuente-datos)) antes de cada despliegue, ya que las fuentes oficiales se actualizan con periodicidad propia (trimestral en el caso de Bilbao).
+- `scripts/deploy.R` enumera a mano los ficheros que se suben: incluye `inst/app/data/observatorio_municipios.parquet`. Si añades otro fichero de datos, añádelo también ahí o no llegará al servidor (la app arranca igualmente y el Observatorio muestra un aviso si falta su fichero).
 
 [⬆ Volver arriba](#top)
 

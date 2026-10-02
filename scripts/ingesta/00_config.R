@@ -42,9 +42,11 @@ for (ruta in c(RUTA_RAW, RUTA_PROCESADOS, RUTA_APP_DATOS)) {
 #       * Sevilla: Andalucía no tiene datos abiertos de fianzas, y desde
 #         01/2026 el depósito de fianza ya no es obligatorio allí (Ley 5/2025).
 #
-# (SERPAVI del Ministerio de Vivienda se descartó como fuente: verificado que
-# es solo una calculadora interactiva protegida con reCAPTCHA, sin descarga
-# masiva real -- ver scripts/ingesta/README si se documenta más adelante.)
+# (SERPAVI del Ministerio de Vivienda se descartó como fuente de los
+# anuncios: su web es una calculadora protegida con reCAPTCHA y solo publica
+# agregados por municipio/distrito, no por barrio de estas ciudades. Esos
+# agregados municipales SÍ se usan en el Observatorio del Alquiler -- ver
+# 09_observatorio.R y la sección 5 de este fichero.)
 #
 # Además, ZONAS_SIN_FUENTE_OFICIAL abajo permite señalar pedanías/barrios
 # concretos DENTRO de un municipio para los que no existe ninguna fuente
@@ -94,3 +96,12 @@ N_ANUNCIOS_POR_ZONA_MAX <- 40
 # alrededor del precio/m² real de cada zona), para que el resultado sea
 # reproducible entre ejecuciones del pipeline.
 SEMILLA_GENERACION <- 2026
+
+# --- 5. Observatorio del Alquiler (09_observatorio.R) -----------------------
+# Año de referencia común a todas las fuentes del observatorio (SERPAVI, INE
+# ADRH, INE Padrón y Catastro). Debe ser un año que publiquen las cuatro: la
+# capa municipal descargable de SERPAVI es de 2022, así que se fija ese año
+# para que ratios como el esfuerzo de alquiler (alquiler / renta) comparen
+# datos del mismo ejercicio. La población se descarga además del último año
+# publicado, para calcular el crecimiento reciente.
+ANIO_OBSERVATORIO <- 2022

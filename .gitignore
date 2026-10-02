@@ -13,6 +13,8 @@ data/processed/*.rds
 data/raw/*.xlsx
 data/raw/*.csv
 !data/raw/anclas_manuales.csv
+# Caché del Observatorio del Alquiler (SERPAVI, INE, Catastro): ~100 MB
+data/raw/observatorio/
 
 # Renderizados temporales de HTML/PDF
 *.html
