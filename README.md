@@ -26,6 +26,7 @@
 - [Capturas de Pantalla](#capturas-pantalla)
 - [Fuente de los Datos](#fuente-datos)
 - [Puesta en Marcha](#puesta-en-marcha)
+- [Calidad y Tests](#calidad-tests)
 - [Documentación Técnica](#documentacion-tecnica)
 - [Licencia](#licencia)
 - [Autor](#autor)
@@ -230,6 +231,21 @@ La app está desplegada en **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://
 
 ---
 
+<a id="calidad-tests"></a>
+## Calidad y Tests
+
+Los cálculos de negocio (KPIs, hipoteca y proyección de la inversión, detección de oportunidades, similitud del recomendador, indicadores del Observatorio, cruce de nombres de municipio entre fuentes…) son funciones puras en `R/fct_*.R`, separadas de la interfaz, y se prueban directamente:
+
+- **29 tests con 102 comprobaciones** (`tests/testthat/`), con valores de referencia calculados a mano (por ejemplo, la cuota de una hipoteca de 200.000 € a 30 años al 3 %), los casos límite y cada fallo ya corregido, para que no vuelva.
+- **Módulos probados con `testServer()`**, sin navegador, para comprobar que cada pantalla pasa bien sus datos a los cálculos.
+- **Integración continua con GitHub Actions**: en cada push, GitHub instala desde cero las versiones exactas de `renv.lock` y ejecuta todos los tests. La insignia **Tests** de arriba muestra el resultado del último commit.
+
+Cómo están organizados los tests, cómo escribir uno nuevo y cómo funciona el workflow: [guía técnica, secciones 8 y 9](docs/GUIA_TECNICA.md#tests).
+
+[⬆ Volver arriba](#top)
+
+---
+
 <a id="documentacion-tecnica"></a>
 ## Documentación Técnica
 
@@ -237,9 +253,11 @@ La **[guía técnica](docs/GUIA_TECNICA.md)** explica el código en detalle:
 
 - Estructura del proyecto y convenciones del paquete `{golem}`.
 - Flujo de datos dentro de la app: qué datos recibe cada módulo y por qué.
+- Recorrido por el código: cómo es un módulo, cómo se separa el cálculo de la interfaz y cómo se comunica el servidor con el navegador, con fragmentos reales.
 - Pipeline de datos paso a paso, con el esquema del dataset y el cruce de fuentes del Observatorio.
 - Optimizaciones de rendimiento, en especial cómo el Observatorio carga ~8.200 polígonos.
-- Instalación detallada (RStudio y terminal), problemas conocidos, tests y despliegue.
+- Instalación detallada (RStudio y terminal) y problemas conocidos.
+- Tests, integración continua (incluido cómo reproducirla en local) y despliegue.
 - Dónde tocar para hacer los cambios más habituales.
 
 [⬆ Volver arriba](#top)

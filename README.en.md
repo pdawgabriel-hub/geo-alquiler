@@ -26,6 +26,7 @@
 - [Screenshots](#screenshots)
 - [Data Source](#data-source)
 - [Getting Started](#getting-started)
+- [Quality & Tests](#quality-tests)
 - [Technical Documentation](#technical-documentation)
 - [License](#license)
 - [Author](#author)
@@ -230,6 +231,21 @@ The app is deployed at **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdaw
 
 ---
 
+<a id="quality-tests"></a>
+## Quality & Tests
+
+The business calculations (KPIs, mortgage and investment projection, opportunity detection, recommender similarity, Observatory indicators, matching municipality names across sources…) are pure functions in `R/fct_*.R`, kept apart from the interface, and are tested directly:
+
+- **29 tests with 102 assertions** (`tests/testthat/`), using reference values worked out by hand (e.g. the monthly payment on a €200,000 mortgage over 30 years at 3%), edge cases, and every bug already fixed so it can't come back.
+- **Modules tested with `testServer()`**, without a browser, to check that each screen passes its data to the calculations correctly.
+- **Continuous integration with GitHub Actions**: on every push, GitHub installs the exact versions in `renv.lock` from scratch and runs all the tests. The **Tests** badge at the top shows the result for the latest commit.
+
+How the tests are organized, how to write a new one and how the workflow works: [technical guide, sections 8 and 9](docs/GUIA_TECNICA.md#tests) (in Spanish).
+
+[⬆ Back to top](#top)
+
+---
+
 <a id="technical-documentation"></a>
 ## Technical Documentation
 
@@ -237,9 +253,11 @@ The **[technical guide](docs/GUIA_TECNICA.md)** (in Spanish) explains the code i
 
 - Project structure and `{golem}` package conventions.
 - Data flow inside the app: which data each module receives and why.
+- A walkthrough of the code: what a module looks like, how calculations are kept apart from the interface, and how the server talks to the browser, with real snippets.
 - The data pipeline step by step, with the dataset schema and how the Observatory's sources are joined.
 - Performance optimizations, especially how the Observatory loads ~8,200 polygons.
-- Detailed installation (RStudio and terminal), known issues, tests and deployment.
+- Detailed installation (RStudio and terminal) and known issues.
+- Tests, continuous integration (including how to reproduce it locally) and deployment.
 - Where to make the most common changes.
 
 [⬆ Back to top](#top)

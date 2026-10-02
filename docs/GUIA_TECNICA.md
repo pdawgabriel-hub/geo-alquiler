@@ -8,14 +8,16 @@ Esta guía explica el código en detalle: cómo está organizado, cómo fluyen l
 - [1. Arquitectura](#arquitectura)
 - [2. Estructura del proyecto](#estructura)
 - [3. Flujo de datos dentro de la app](#flujo-datos)
-- [4. Pipeline de datos](#pipeline)
-  - [4.1 Dataset de anuncios](#pipeline-anuncios)
-  - [4.2 Observatorio del Alquiler](#pipeline-observatorio)
-- [5. Rendimiento](#rendimiento)
-- [6. Instalación y ejecución](#instalacion)
-- [7. Tests](#tests)
-- [8. Despliegue](#despliegue)
-- [9. Dónde tocar para…](#donde-tocar)
+- [4. Recorrido por el código](#codigo)
+- [5. Pipeline de datos](#pipeline)
+  - [5.1 Dataset de anuncios](#pipeline-anuncios)
+  - [5.2 Observatorio del Alquiler](#pipeline-observatorio)
+- [6. Rendimiento](#rendimiento)
+- [7. Instalación y ejecución](#instalacion)
+- [8. Tests](#tests)
+- [9. Integración continua](#ci)
+- [10. Despliegue](#despliegue)
+- [11. Dónde tocar para…](#donde-tocar)
 
 ---
 
@@ -69,7 +71,7 @@ geo-alquiler/
 │                          #   motivos de "sin dato", WKB -> sf, JSON de geometría, caché
 ├── inst/app/
 │   ├── data/              # alquileres.parquet y observatorio_municipios.parquet
-│   └── www/               # custom.css y custom.js (ver "Rendimiento")
+│   └── www/               # custom.css y custom.js (ver secciones 4.4 y 6)
 ├── scripts/
 │   ├── deploy.R           # Despliegue a shinyapps.io (lista de ficheros a subir)
 │   └── ingesta/
@@ -90,7 +92,9 @@ geo-alquiler/
 ├── man/figures/           # Capturas y esquema de arquitectura de la documentación
 ├── docs/                  # Esta guía
 ├── reporte_plantilla.Rmd  # Plantilla del Informe Ejecutivo
-├── tests/testthat/        # Tests (ver sección 7)
+├── tests/testthat/        # Tests (ver sección 8)
+├── .github/workflows/
+│   └── ci.yml             # Integración continua: tests y despliegue (ver sección 9)
 └── renv.lock              # Versiones exactas de todas las dependencias
 ```
 
@@ -140,8 +144,135 @@ Detalles que conviene conocer:
 
 ---
 
+<a id="codigo"></a>
+## 4. Recorrido por el código
+
+Esta sección recorre los patrones que se repiten en el código, con fragmentos reales del repositorio. Si entiendes estos cinco, puedes leer cualquier fichero de `R/`.
+
+### 4.1 Un módulo: interfaz por un lado, servidor por otro
+
+Cada pantalla es un par de funciones en su `mod_*.R`. La de interfaz (`*UI(id)`) construye los controles con `NS(id)`, que antepone el identificador del módulo a cada `inputId` para que dos módulos puedan tener un control llamado igual sin pisarse. La de servidor (`*Server(id, ...)`) recibe los datos ya preparados como argumento y no sabe de dónde vienen:
+
+```r
+oportunidadesServer <- function(id, datos_visibles) {
+  moduleServer(id, function(input, output, session) {
+    df_oportunidades <- reactive({
+      detectar_oportunidades(datos_visibles(), input$pct_descuento)
+    })
+    # ... KPIs, mapa y tabla a partir de df_oportunidades()
+  })
+}
+```
+
+`datos_visibles` es un `reactive`: el módulo lo llama como función (`datos_visibles()`) y Shiny vuelve a calcular `df_oportunidades` cada vez que cambian los filtros, el encuadre del mapa o el umbral.
+
+### 4.2 Separar el cálculo de la reactividad
+
+La regla del proyecto: **un módulo lee inputs, llama a una función y pinta el resultado**. El cálculo vive en una función pura de `R/fct_calculos.R` o `R/fct_observatorio.R`, sin `input`, `output` ni `reactive`. Así se puede probar con valores concretos, sin levantar un servidor.
+
+La Calculadora es el ejemplo más claro. Toda su lógica financiera (cuota hipotecaria, amortización mes a mes, proyección a N años) está en `simular_inversion()`, y el módulo solo traduce los inputs, que llegan en porcentaje, a tanto por uno:
+
+```r
+simulacion <- reactive({
+  simular_inversion(
+    precio = req(input$precio_compra),
+    alquiler_mensual = req(input$alquiler_mensual),
+    gastos_anuales = req(input$gastos_mantenimiento),
+    pct_entrada = req(input$porcentaje_entrada) / 100,
+    tin = req(input$interes_hipoteca) / 100,
+    anos = as.numeric(req(input$plazo_anos)),
+    inc_alquiler = req(input$incremento_alquiler) / 100,
+    aprec_inmueble = req(input$apreciacion_inmueble) / 100
+  )
+})
+```
+
+`req()` detiene el cálculo en silencio mientras un input esté vacío, en vez de propagar un error a la pantalla.
+
+### 4.3 `app_server.R`: el único sitio que sabe qué datos recibe cada módulo
+
+`app_server.R` no contiene lógica: carga los datos, encadena filtros y mapa, y reparte. Leyendo estas líneas se ve el flujo completo descrito en la [sección 3](#flujo-datos):
+
+```r
+datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
+datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
+
+tablaServer("tabla_principal", datos_visibles, favoritos_ids)
+oportunidadesServer("oportunidades_principal", datos_visibles)
+recomendadorServer("recomendador_principal", datos_filtrados_sidebar)
+prediccionServer("prediccion_principal", datos_totales)
+observatorioServer("observatorio_principal", datos_observatorio)
+# ...
+```
+
+`mapaServer()` es a la vez un módulo y un filtro: pinta el mapa y **devuelve** un `reactive` con los inmuebles del encuadre visible, que es lo que reciben las pantallas que dependen de "lo que estoy mirando". El estado que comparten varios módulos (los favoritos) se crea aquí con `reactiveVal()` y se pasa a los que lo necesitan.
+
+### 4.4 Hablar con el navegador sin reenviar todo
+
+Shiny actualiza una salida mandando su contenido completo. Para el mapa del Observatorio (~8.200 polígonos) eso es demasiado, así que hay tres canales directos con el navegador:
+
+**Servidor → navegador, con un mensaje propio.** Al cambiar de indicador, el servidor no vuelve a pintar el mapa: manda solo los colores y los valores nuevos, identificados por código INE.
+
+```r
+session$sendCustomMessage("observatorio_recolorear", list(
+  mapa = ns("mapa"), ids = df$cod_ine, colores = est$colores,
+  valores = est$valores_txt, sin_dato = formatear_indicador(NA, input$indicador),
+  separador = SEP_ETIQUETA
+))
+```
+
+Y `inst/app/www/custom.js` lo recibe y recolorea los polígonos que ya están dibujados (versión simplificada):
+
+```js
+Shiny.addCustomMessageHandler('observatorio_recolorear', function (msg) {
+  var mapa = HTMLWidgets.find('#' + msg.mapa).getMap();
+  for (var i = 0; i < msg.ids.length; i++) {
+    var capa = mapa.layerManager.getLayer('shape', msg.ids[i]);
+    if (!capa) continue;
+    capa.setStyle({ fillColor: msg.colores[i], fillOpacity: msg.valores[i] === msg.sin_dato ? 0.35 : 0.8 });
+    // ... y actualiza la etiqueta conservando el nombre del municipio
+  }
+});
+```
+
+**Navegador → servidor, con un input propio.** Para mandar el gráfico y el ranking solo cuando el mapa ya se ve, el navegador avisa con `Shiny.setInputValue()`, que en el servidor aparece como un input más (`input$mapa_pintado`):
+
+```r
+htmlwidgets::onRender("
+  function(el) {
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        Shiny.setInputValue(el.id + '_pintado', true);
+      });
+    });
+  }")
+```
+
+El gráfico y el ranking empiezan con `req(input$mapa_pintado)`, así que no se calculan hasta ese momento.
+
+**Leaflet por proxy.** Cambiar de provincia sustituye los polígonos con `leafletProxy("mapa")`, que manda órdenes al mapa existente (`clearShapes()`, añadir polígonos, encuadrar) en vez de recrearlo.
+
+### 4.5 El pipeline: fallar pronto y con un mensaje útil
+
+Cada fuente del pipeline tiene una función de descarga (con caché) y otra de lectura. La de lectura comprueba primero que el fichero tiene la forma esperada y, si no, se detiene diciendo qué ha encontrado. Así un cambio de formato en una web del Ministerio no acaba en un dataset mal interpretado:
+
+```r
+esperadas <- c("CodINE", "CPRO", "LITPRO", "NAMEUNIT", "Num_VC", "Renta_Medi", ...)
+faltan <- setdiff(esperadas, names(x))
+if (length(faltan) > 0) {
+  stop("[SERPAVI] Faltan columnas esperadas en el shapefile: ", paste(faltan, collapse = ", "),
+       ". Columnas encontradas: ", paste(names(x), collapse = ", "))
+}
+```
+
+Los cálculos que comparten pipeline y app (indicadores del Observatorio, normalización de nombres) están en `R/fct_observatorio.R`, y el pipeline los carga con `source()`. Así una misma función no puede dar un resultado al generar los datos y otro distinto al mostrarlos.
+
+[⬆ Volver arriba](#top)
+
+---
+
 <a id="pipeline"></a>
-## 4. Pipeline de datos
+## 5. Pipeline de datos
 
 Todo se regenera con:
 
@@ -163,7 +294,7 @@ Solo para regenerar datos hacen falta, además de las dependencias de la app:
 | `pdftotext` (paquete de sistema `poppler-utils`) | Texto del informe trimestral de Bilbao. En Linux: `sudo apt install poppler-utils` |
 
 <a id="pipeline-anuncios"></a>
-### 4.1 Dataset de anuncios (`alquileres.parquet`)
+### 5.1 Dataset de anuncios (`alquileres.parquet`)
 
 Pasos 01 a 08: configuración → utilidades → una fuente por ciudad → anclas manuales → geocodificación → armonización → generación. Para añadir una ciudad basta con tocar `00_config.R` y, si no hay fuente oficial, `data/raw/anclas_manuales.csv`.
 
@@ -198,7 +329,7 @@ Esquema del dataset final:
 Los "anuncios" individuales son una ilustración generada dentro de cada zona (superficie, tipología y un margen de ruido aleatorio con semilla fija), pero el precio de cada uno **siempre parte del €/m² real de su zona**.
 
 <a id="pipeline-observatorio"></a>
-### 4.2 Observatorio del Alquiler (`observatorio_municipios.parquet`)
+### 5.2 Observatorio del Alquiler (`observatorio_municipios.parquet`)
 
 Lo genera `09_observatorio.R`: una fila por municipio (~4,8 MB) con los indicadores y la geometría en WKB a dos niveles de detalle. Todas las fuentes se refieren al mismo año, `ANIO_OBSERVATORIO` en `00_config.R` (2022), para que los ratios entre ellas comparen el mismo ejercicio. Las descargas se cachean en `data/raw/observatorio/` (no versionado, ~100 MB).
 
@@ -234,7 +365,7 @@ Con esto se cruzan los 7.612 nombres del Catastro. Cuatro corresponden a municip
 ---
 
 <a id="rendimiento"></a>
-## 5. Rendimiento
+## 6. Rendimiento
 
 La app está pensada para cargar rápido también en el móvil y con conexiones lentas. La regla general es hacer el trabajo pesado en el servidor y mandar al navegador solo lo que se va a pintar.
 
@@ -269,7 +400,7 @@ Resultado medido en local con Chromium: el mapa nacional aparece a ~1,2 s de abr
 ---
 
 <a id="instalacion"></a>
-## 6. Instalación y ejecución
+## 7. Instalación y ejecución
 
 ### Requisitos
 
@@ -347,31 +478,90 @@ Rscript -e 'renv::restore()'
 
 Los paquetes que ya están en la caché de `renv` se enlazan desde ahí, sin descargar ni compilar. Comprueba el resultado con `Rscript -e 'renv::status()'`, que debe decir "No issues found".
 
-> Hasta octubre de 2026, `renv.lock` tenía entradas `null` en las dependencias de nueve paquetes (`rstudioapi`, `rsconnect`, `httr2`…). `renv` las interpretaba como un paquete por descargar (`[NULL]: failed to download`) y, al fallar, deshacía toda la instalación. Si trabajas con una copia antigua del lockfile y ves ese error, actualízalo o ejecuta la restauración con `RENV_CONFIG_INSTALL_TRANSACTIONAL=FALSE`.
+> Si trabajas con una copia del proyecto anterior a octubre de 2026 y `renv::restore()` falla con `[NULL]: failed to download` o con paquetes en `dependency failed`, actualiza `renv.lock` y `renv/activate.R` desde el repositorio: eran dos problemas del lockfile y de `renv` 1.2.3, ya corregidos (ver [sección 9](#ci)).
 
 [⬆ Volver arriba](#top)
 
 ---
 
 <a id="tests"></a>
-## 7. Tests
+## 8. Tests
 
 ```bash
 Rscript -e 'testthat::test_dir("tests/testthat")'                       # todos
 Rscript -e 'testthat::test_file("tests/testthat/test_observatorio.R")'   # uno concreto
 ```
 
-| Fichero | Qué cubre |
-|---|---|
-| `test_calculos.R` | Las funciones de `fct_calculos.R`: KPIs (incluido el conjunto vacío); validación del encuadre del mapa (el caso del encuadre degenerado que vaciaba las pantallas); cuota hipotecaria con un valor de referencia (200.000 € a 30 años al 3 % = 843,21 €/mes) y sin interés; proyección año a año (entrada, actualización del alquiler, revalorización, deuda saldada al final); oportunidades frente a la media de su ciudad; distancia y orden del recomendador KNN, con y sin coordenadas; y que la fórmula de predicción no rompa `lm()` con una sola ciudad. Incluye un `testServer` que comprueba que la Calculadora pasa los porcentajes de los inputs a tanto por uno |
-| `test_mod_tabla.R`, `test_tabla.R` | Módulo de tabla y gestión de favoritos (`testServer`) |
-| `test_observatorio.R` | Indicadores derivados y datos ausentes; formato numérico español; cortes por cuantiles; reconstrucción de la geometría; normalización, cruce exacto y aproximado de nombres de municipio; motivo de cada dato ausente; parseo de las tablas del Catastro; que el JSON de geometría generado a mano sea idéntico al de Leaflet; la caché por ámbito; y el módulo completo con `testServer` |
+Hay **29 tests** (`test_that()`) con **102 comprobaciones** (`expect_*()`):
 
-Los tests cargan el código con `source()` desde `tests/testthat/`, así que se ejecutan sin instalar el paquete. Cada función de cálculo nueva debería llevar su test, con el patrón `test_that("descripción del comportamiento", { expect_*(...) })`.
+| Fichero | Tests | Comprobaciones | Qué cubre |
+|---|---|---|---|
+| `test_calculos.R` | 12 | 52 | Las funciones de `fct_calculos.R`: KPIs (también con un conjunto vacío); validación del encuadre del mapa; cuota hipotecaria y proyección año a año; oportunidades frente a la media de su ciudad; distancia del recomendador KNN, con y sin coordenadas; fórmula de predicción con una sola ciudad. Más un `testServer` de la Calculadora |
+| `test_observatorio.R` | 15 | 47 | Indicadores derivados y datos ausentes; formato numérico español; cortes por cuantiles; reconstrucción de la geometría; normalización y cruce exacto y aproximado de nombres de municipio; motivo de cada dato ausente; parseo de las tablas del Catastro; JSON de geometría idéntico al de Leaflet; caché por ámbito; y el módulo completo con `testServer` |
+| `test_mod_tabla.R`, `test_tabla.R` | 2 | 3 | Módulo de tabla: marcar y desmarcar favoritos (`testServer`) |
 
-### Integración continua
+### Cómo están organizados
 
-`.github/workflows/ci.yml` ejecuta los tests en GitHub en cada push y en cada pull request: instala R 4.3.3 y las librerías del sistema que necesitan `sf`, `terra` y `arrow`, restaura `renv.lock` (con binarios de Posit Package Manager y caché entre ejecuciones) y lanza `testthat::test_dir()`. El resultado se ve en la insignia **Tests** del README y en la pestaña *Actions* del repositorio.
+Los tests cargan el código que prueban con `source()`, en vez de instalar el paquete:
+
+```r
+source("../../R/fct_calculos.R")
+source("../../R/mod_calculadora.R")
+```
+
+`testthat::test_dir()` ejecuta cada fichero con `tests/testthat/` como directorio de trabajo, de ahí la ruta `../../R/`. Esto tiene dos ventajas: los tests corren en segundos sin construir el paquete, y cada fichero declara exactamente qué código usa. A cambio, si el código usa funciones de otros paquetes sin prefijo (por ejemplo `renderValueBox` de `shinydashboard`), el test tiene que cargarlos con `library()`.
+
+Hay tres tipos de test, de más simple a más completo:
+
+**1. Funciones puras con valores de referencia.** La mayoría. Se comprueba el resultado contra un valor calculado a mano o conocido, nunca recalculándolo con la misma fórmula dentro del test (eso solo comprobaría que la fórmula es igual a sí misma):
+
+```r
+test_that("cuota_hipoteca aplica el sistema francés", {
+  # Valor de referencia: 200.000 € a 30 años al 3 % -> 843,21 €/mes
+  expect_equal(round(cuota_hipoteca(200000, 0.03, 30), 2), 843.21)
+  # Sin interés, la cuota es el capital entre el número de meses
+  expect_equal(cuota_hipoteca(120000, 0, 10), 1000)
+})
+```
+
+**2. Tests de regresión: casos que ya fallaron una vez.** Cuando se arregla un fallo, se añade un test con el caso exacto que lo provocaba, para que no vuelva. Por ejemplo, un encuadre del mapa sin área (que Leaflet reporta un instante al redimensionar) vaciaba siete pantallas:
+
+```r
+degenerado <- list(north = 40.5, south = 40.5, east = -3.6, west = -3.6)
+expect_equal(nrow(filtrar_por_encuadre(df, degenerado)), nrow(df))
+```
+
+Otro del mismo tipo: la predicción con una sola ciudad, con la que `lm()` fallaba por tener un factor de un solo nivel.
+
+**3. Módulos con `testServer()`.** Ejecuta el servidor de un módulo sin navegador: se simulan inputs con `session$setInputs()` y se inspeccionan sus `reactive` internos directamente por su nombre:
+
+```r
+test_that("La calculadora pasa los porcentajes de los inputs a tanto por uno", {
+  testServer(calculadoraServer, {
+    session$setInputs(precio_compra = 200000, alquiler_mensual = 1000, gastos_mantenimiento = 1200,
+                      porcentaje_entrada = 20, interes_hipoteca = 3, plazo_anos = "25",
+                      incremento_alquiler = 2, apreciacion_inmueble = 1)
+    expect_equal(simulacion(), simular_inversion(200000, 1000, 1200, 0.2, 0.03, 25, 0.02, 0.01))
+  })
+})
+```
+
+Este test no repite la lógica financiera (ya la prueba el tipo 1): solo comprueba el **cableado**, que es justo lo que puede romperse en el módulo, por ejemplo olvidar dividir entre 100.
+
+### Datos de prueba
+
+Los tests no leen los Parquet reales: construyen pequeños `data.frame` con valores elegidos para que el resultado esperado sea fácil de calcular a mano. En `test_calculos.R`, `inmuebles_mock()` tiene cinco inmuebles en dos ciudades, con precios/m² de 10, 10 y 7 en Madrid, de modo que la media es 9 y el tercero está un 22,2 % por debajo. En `test_observatorio.R`, `observatorio_mock()` reproduce el formato del Parquet del Observatorio (geometría en WKB incluida) con dos municipios.
+
+### Refactorizar sin cambiar el comportamiento
+
+Al mover los cálculos de los módulos a `fct_calculos.R`, antes de tocar ningún módulo se comprobó que cada función nueva daba exactamente lo mismo que el código original: se compararon contra una copia literal del código antiguo con datos reales y entradas aleatorias (200 simulaciones de la Calculadora, siete umbrales de oportunidades, 20 inmuebles del recomendador y los KPIs con datos completos, vacíos y de una sola ciudad). Es la forma segura de reorganizar código que no tenía tests: primero fijar su comportamiento actual y luego moverlo.
+
+### Escribir un test nuevo
+
+1. Si el cálculo está dentro de un módulo, sácalo a una función en `R/fct_*.R` y haz que el módulo la llame.
+2. Escribe en `tests/testthat/test_*.R` un `test_that("frase que describe el comportamiento", { ... })` con datos pequeños y resultados calculados a mano. Prueba también el caso vacío y los extremos.
+3. Si arreglas un fallo, añade el caso exacto que lo provocaba.
+4. Ejecuta `Rscript -e 'testthat::test_dir("tests/testthat")'`. Al hacer push, GitHub ejecutará los mismos tests (ver [sección 9](#ci)).
 
 Para una validación completa del paquete (tests, `DESCRIPTION`, documentación y estructura):
 
@@ -384,13 +574,85 @@ R CMD check --no-manual GeoAlquiler_*.tar.gz
 
 ---
 
+<a id="ci"></a>
+## 9. Integración continua
+
+`.github/workflows/ci.yml` ejecuta los tests en GitHub en cada push y en cada pull request. El resultado aparece en la insignia **Tests** del README, junto a cada commit y en la pestaña [*Actions*](https://github.com/pdawgabriel-hub/geo-alquiler/actions) del repositorio.
+
+### Qué hace el workflow
+
+Tiene dos jobs. **Tests** se ejecuta siempre:
+
+| Paso | Qué hace y por qué |
+|---|---|
+| `actions/checkout@v5` | Descarga el código del commit. |
+| Instalar librerías del sistema | `apt-get install` de GDAL, GEOS, PROJ, udunits, SQLite, libcurl, OpenSSL y libxml2: las librerías de C que necesitan `sf`, `terra`, `arrow` y `curl`. |
+| `r-lib/actions/setup-r@v2` | Instala **R 4.3.3**, la misma versión que `renv.lock`. Con `use-public-rspm: true` usa paquetes **precompilados** de Posit Package Manager para Ubuntu 24.04: sin eso habría que compilar `arrow`, `sf` o `terra` desde el código fuente, y cada ejecución tardaría mucho más. |
+| `r-lib/actions/setup-renv@v2` | Ejecuta `renv::restore()` para instalar las versiones exactas del lockfile, y guarda la librería en caché: si `renv.lock` no cambia, la siguiente ejecución la reutiliza. |
+| Ejecutar tests | `testthat::test_dir("tests/testthat", stop_on_failure = TRUE)`: si falla una comprobación, el proceso termina con error y el commit queda en rojo. |
+
+Una ejecución completa tarda unos 2 minutos.
+
+**Despliegue** solo se ejecuta en un push a `main` y solo si **Tests** ha pasado (`needs: tests`). Antes de nada comprueba si existen los secretos del repositorio:
+
+```yaml
+- name: Comprobar credenciales
+  id: credenciales
+  env:
+    SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+    SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+  run: |
+    if [ -n "$SHINYAPPS_TOKEN" ] && [ -n "$SHINYAPPS_SECRET" ]; then
+      echo "disponibles=true" >> "$GITHUB_OUTPUT"
+    else
+      echo "::notice::Sin secretos SHINYAPPS_TOKEN/SHINYAPPS_SECRET: se omite el despliegue."
+    fi
+```
+
+El resto de pasos llevan `if: steps.credenciales.outputs.disponibles == 'true'`. Este rodeo es necesario porque GitHub no permite usar `secrets` directamente en un `if`. Sin secretos, el job termina en verde sin desplegar nada; con ellos, configura la cuenta con `rsconnect::setAccountInfo()` y ejecuta `scripts/deploy.R`. `concurrency` impide que dos push seguidos lancen dos despliegues a la vez.
+
+### Leer un fallo
+
+En *Actions*, entra en la ejecución con la cruz roja, después en el job y despliega el paso marcado en rojo:
+
+- **Falla "Ejecutar tests"**: el final del log indica qué `test_that` ha fallado, en qué línea y qué valor esperaba frente al obtenido. Reprodúcelo en local con `testthat::test_file()` sobre ese fichero.
+- **Falla `setup-renv`**: no se ha podido instalar algún paquete. El resumen final (`The following package(s) were not installed successfully`) lista cada paquete con su motivo; el que importa es el que no dice `dependency failed`, porque los demás caen en cadena.
+
+### Reproducir el CI en local
+
+En tu ordenador, `renv` reutiliza su caché y no ve los problemas que aparecen al instalar desde cero. Para repetir en local lo que hace GitHub, restaura sobre una librería vacía, fuera del proyecto, sin caché y con los mismos binarios:
+
+```bash
+RENV_PATHS_LIBRARY=/tmp/libreria-ci \
+RENV_CONFIG_CACHE_ENABLED=FALSE \
+RENV_CONFIG_REPOS_OVERRIDE="https://packagemanager.posit.co/cran/__linux__/noble/latest" \
+Rscript -e 'renv::restore(prompt = FALSE)'
+
+RENV_PATHS_LIBRARY=/tmp/libreria-ci Rscript -e 'testthat::test_dir("tests/testthat", stop_on_failure = TRUE)'
+```
+
+Es fiel si tu sistema es Ubuntu 24.04 con R 4.3.3, como el de GitHub. La librería tiene que estar fuera de la carpeta del proyecto: si está dentro, `renv` lee también el código de los paquetes instalados al buscar dependencias y da avisos falsos.
+
+### Dos problemas que aparecieron al montarlo
+
+Ninguno se veía en local, porque los paquetes salían de la caché de `renv`. Los dos rompían la instalación desde cero, que es lo que hace GitHub en cada ejecución nueva.
+
+1. **Entradas `null` en `renv.lock`.** Nueve paquetes (`rstudioapi`, `rsconnect`, `httr2`…) tenían un `null` en su lista de dependencias. `renv` lo interpretaba como un paquete por descargar (`[NULL]: failed to download`) y, al fallar, deshacía toda la instalación. Se corrigió quitando esas entradas del lockfile, sin cambiar ninguna versión.
+2. **Bug de `renv` 1.2.3 con `curl`.** Al instalar desde cero, `renv` 1.2.3 asignaba a `curl` las dependencias del propio proyecto (las de su `DESCRIPTION`). Como `plotly` depende de `curl` a través de `httr`, se formaba un ciclo y `renv` dejaba sin instalar `curl`, `httr`, `httr2`, `plotly`, `rsconnect` y `snowflakeauth`: todos aparecían como `dependency failed` sin ningún error real. Se localizó interceptando la función interna que genera ese mensaje para ver qué dependencias había calculado para cada paquete, y se corrigió actualizando a `renv` 1.3.0 (`renv::upgrade()`), que no tiene el fallo.
+
+La lección para el futuro: **antes de dar por bueno un cambio en `renv.lock`, prueba una restauración desde cero** con el comando de arriba.
+
+[⬆ Volver arriba](#top)
+
+---
+
 <a id="despliegue"></a>
-## 8. Despliegue
+## 10. Despliegue
 
 La app está desplegada en shinyapps.io: **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**. Se despliega de dos formas:
 
 - **A mano**: `Rscript scripts/deploy.R`, que sube los ficheros que haya en tu disco.
-- **Automática**: el job `despliegue` de `.github/workflows/ci.yml` ejecuta ese mismo script después de cada push a `main`, solo si los tests pasan. Necesita dos secretos en el repositorio (*Settings > Secrets and variables > Actions*): `SHINYAPPS_TOKEN` y `SHINYAPPS_SECRET`, que se obtienen en shinyapps.io en *Account > Tokens*. Sin ellos el job se omite sin dar error.
+- **Automática**: el job `despliegue` de `.github/workflows/ci.yml` ejecuta ese mismo script después de cada push a `main`, solo si los tests pasan (ver [sección 9](#ci)). Necesita dos secretos en el repositorio (*Settings > Secrets and variables > Actions*): `SHINYAPPS_TOKEN` y `SHINYAPPS_SECRET`, que se obtienen en shinyapps.io en *Account > Tokens*. Sin ellos el job termina en verde sin desplegar nada.
 
 Lecciones de los despliegues:
 
@@ -405,7 +667,7 @@ Lecciones de los despliegues:
 ---
 
 <a id="donde-tocar"></a>
-## 9. Dónde tocar para…
+## 11. Dónde tocar para…
 
 | Quiero… | Cambiar | No hace falta tocar |
 |---|---|---|
