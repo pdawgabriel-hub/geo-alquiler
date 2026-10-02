@@ -96,42 +96,9 @@ recomendadorServer <- function(id, datos) {
       )
     })
     
-    # 4. Cálculo de Similitud (Ultrarrobusto)
+    # 4. Similitud (distancia ponderada en inmuebles_similares(), R/fct_calculos.R)
     similares <- reactive({
-      ref <- inmueble_ref()
-      df <- datos()
-      if (is.null(ref) || is.null(df) || nrow(df) < 2) return(NULL)
-      
-      # Excluir el inmueble seleccionado
-      cand <- df[df$id != ref$id[1], , drop = FALSE]
-      if (nrow(cand) == 0) return(NULL)
-      
-      # Detectar nombres de columnas disponibles
-      col_pre <- if ("precio" %in% names(cand)) "precio" else NULL
-      col_sup <- if ("superficie" %in% names(cand)) "superficie" else NULL
-      col_lat <- intersect(c("latitud", "lat", "latitude"), names(cand))[1]
-      col_lng <- intersect(c("longitud", "lng", "lon", "longitude"), names(cand))[1]
-      
-      if (is.null(col_pre) || is.null(col_sup)) return(NULL)
-      
-      # Distancia matemática
-      d_pre <- abs(cand[[col_pre]] - ref[[col_pre]][1]) / (max(df[[col_pre]], na.rm=T) - min(df[[col_pre]], na.rm=T) + 1e-5)
-      d_sup <- abs(cand[[col_sup]] - ref[[col_sup]][1]) / (max(df[[col_sup]], na.rm=T) - min(df[[col_sup]], na.rm=T) + 1e-5)
-      
-      if (!is.na(col_lat) && !is.na(col_lng)) {
-        d_lat <- abs(cand[[col_lat]] - ref[[col_lat]][1]) / (max(df[[col_lat]], na.rm=T) - min(df[[col_lat]], na.rm=T) + 1e-5)
-        d_lng <- abs(cand[[col_lng]] - ref[[col_lng]][1]) / (max(df[[col_lng]], na.rm=T) - min(df[[col_lng]], na.rm=T) + 1e-5)
-        dist_total <- sqrt(0.3 * d_lat^2 + 0.3 * d_lng^2 + 0.25 * d_pre^2 + 0.15 * d_sup^2)
-      } else {
-        dist_total <- sqrt(0.6 * d_pre^2 + 0.4 * d_sup^2)
-      }
-      
-      cand$score <- dist_total
-      cand$similitud <- paste0(round(pmax(0, (1 - dist_total)) * 100, 1), "%")
-      cand$precio_m2 <- round(cand[[col_pre]] / cand[[col_sup]], 1)
-      
-      cand <- cand[order(cand$score), ]
-      head(cand, input$top_n)
+      inmuebles_similares(inmueble_ref(), datos(), input$top_n)
     })
     
     # 5. Renderizar Tabla final mostrando solo columnas existentes

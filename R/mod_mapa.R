@@ -174,23 +174,10 @@ mapaServer <- function(id, datos_reactivos) {
     # "datos_visibles" desde app_server.R) -- un encuadre inválido aquí
     # vacía esas 4 pantallas a la vez, aunque no muestren el mapa.
     datos_en_pantalla <- reactive({
-      df <- datos_reactivos()
-      bounds <- input$mapa_alquiler_bounds
-
-      # Un redimensionado del mapa (sidebar, rotación, orientación en móvil)
-      # puede hacer que Leaflet reporte momentáneamente un encuadre inválido
-      # o degenerado (valores no numéricos, o un rectángulo sin área). Se
-      # trata igual que "todavía no hay encuadre": mostrar todos los datos,
-      # en vez de dejar la app entera sin datos por un valor transitorio.
-      bounds_validos <- !is.null(bounds) &&
-        all(vapply(bounds, function(x) is.numeric(x) && length(x) == 1 && is.finite(x), logical(1))) &&
-        bounds$south < bounds$north && bounds$west < bounds$east
-
-      if (!bounds_validos || is.null(df) || nrow(df) == 0) return(df)
-
-      # Filtramos los inmuebles cuyas lat/lng están dentro de la ventana visible
-      df[df$lat >= bounds$south & df$lat <= bounds$north &
-         df$lng >= bounds$west & df$lng <= bounds$east, ]
+      # Un encuadre inválido (p. ej. durante un redimensionado) devuelve
+      # todos los datos en vez de ninguno: ver encuadre_valido() en
+      # R/fct_calculos.R.
+      filtrar_por_encuadre(datos_reactivos(), input$mapa_alquiler_bounds)
     })
 
     return(datos_en_pantalla)

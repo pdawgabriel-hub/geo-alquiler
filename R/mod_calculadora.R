@@ -54,93 +54,21 @@ calculadoraUI <- function(id) {
 calculadoraServer <- function(id, datos = NULL) {
   moduleServer(id, function(input, output, session) {
     
-    # 1. Cálculos Base Hipotecarios
+    # 1. Simulación de la inversión (cálculo en simular_inversion(),
+    # R/fct_calculos.R; aquí solo se leen los inputs y se pasan a tanto por uno)
     simulacion <- reactive({
-      precio <- req(input$precio_compra)
-      alquiler <- req(input$alquiler_mensual)
-      gastos_anuales <- req(input$gastos_mantenimiento)
-      pct_entrada <- req(input$porcentaje_entrada) / 100
-      tin <- req(input$interes_hipoteca) / 100
-      anos <- as.numeric(req(input$plazo_anos))
-      inc_alquiler <- req(input$incremento_alquiler) / 100
-      aprec_inmueble <- req(input$apreciacion_inmueble) / 100
-      
-      entrada <- precio * pct_entrada
-      monto_prestamo <- precio - entrada
-      
-      # Cuota Hipotecaria Francesa (mensual)
-      tasa_mensual <- tin / 12
-      num_cuotas <- anos * 12
-      
-      cuota_mensual <- if (tin > 0) {
-        monto_prestamo * (tasa_mensual * (1 + tasa_mensual)^num_cuotas) / (((1 + tasa_mensual)^num_cuotas) - 1)
-      } else {
-        monto_prestamo / num_cuotas
-      }
-      
-      # Proyección año a año
-      df_proyeccion <- data.frame(
-        Ano = 0:anos,
-        Valor_Inmueble = NA_real_,
-        Saldo_Pendiente = NA_real_,
-        Ingreso_Alquiler_Anual = NA_real_,
-        Gastos_Operativos_Anuales = NA_real_,
-        Pago_Hipoteca_Anual = NA_real_,
-        Cash_Flow_Anual = NA_real_,
-        Cash_Flow_Acumulado = NA_real_
-      )
-      
-      # Año 0
-      df_proyeccion$Valor_Inmueble[1] <- precio
-      df_proyeccion$Saldo_Pendiente[1] <- monto_prestamo
-      df_proyeccion$Ingreso_Alquiler_Anual[1] <- 0
-      df_proyeccion$Gastos_Operativos_Anuales[1] <- 0
-      df_proyeccion$Pago_Hipoteca_Anual[1] <- 0
-      df_proyeccion$Cash_Flow_Anual[1] <- -entrada
-      df_proyeccion$Cash_Flow_Acumulado[1] <- -entrada
-      
-      saldo_actual <- monto_prestamo
-      alquiler_actual <- alquiler * 12
-      gastos_actuales <- gastos_anuales
-      cf_acumulado <- -entrada
-      
-      for (a in 1:anos) {
-        # Amortización del año
-        interes_ano <- 0
-        capital_ano <- 0
-        for (m in 1:12) {
-          int_m <- saldo_actual * tasa_mensual
-          cap_m <- cuota_mensual - int_m
-          interes_ano <- interes_ano + int_m
-          capital_ano <- capital_ano + cap_m
-          saldo_actual <- max(0, saldo_actual - cap_m)
-        }
-        
-        val_inmueble <- precio * ((1 + aprec_inmueble)^a)
-        ing_alq <- alquiler_actual * ((1 + inc_alquiler)^(a - 1))
-        gast_op <- gastos_actuales * ((1 + inc_alquiler)^(a - 1)) # Asumimos inflación en gastos
-        pago_hip <- cuota_mensual * 12
-        
-        cf_anual <- ing_alq - gast_op - pago_hip
-        cf_acumulado <- cf_acumulado + cf_anual
-        
-        df_proyeccion$Valor_Inmueble[a + 1] <- round(val_inmueble, 0)
-        df_proyeccion$Saldo_Pendiente[a + 1] <- round(saldo_actual, 0)
-        df_proyeccion$Ingreso_Alquiler_Anual[a + 1] <- round(ing_alq, 0)
-        df_proyeccion$Gastos_Operativos_Anuales[a + 1] <- round(gast_op, 0)
-        df_proyeccion$Pago_Hipoteca_Anual[a + 1] <- round(pago_hip, 0)
-        df_proyeccion$Cash_Flow_Anual[a + 1] <- round(cf_anual, 0)
-        df_proyeccion$Cash_Flow_Acumulado[a + 1] <- round(cf_acumulado, 0)
-      }
-      
-      list(
-        cuota_mensual = cuota_mensual,
-        entrada = entrada,
-        monto_prestamo = monto_prestamo,
-        proyeccion = df_proyeccion
+      simular_inversion(
+        precio = req(input$precio_compra),
+        alquiler_mensual = req(input$alquiler_mensual),
+        gastos_anuales = req(input$gastos_mantenimiento),
+        pct_entrada = req(input$porcentaje_entrada) / 100,
+        tin = req(input$interes_hipoteca) / 100,
+        anos = as.numeric(req(input$plazo_anos)),
+        inc_alquiler = req(input$incremento_alquiler) / 100,
+        aprec_inmueble = req(input$apreciacion_inmueble) / 100
       )
     })
-    
+
     # 2. Render KPIs
     output$kpi_cuota_mensual <- renderValueBox({
       sim <- simulacion()
@@ -153,9 +81,7 @@ calculadoraServer <- function(id, datos = NULL) {
     })
     
     output$kpi_roi_bruto <- renderValueBox({
-      precio <- req(input$precio_compra)
-      alquiler <- req(input$alquiler_mensual)
-      yield <- if (precio > 0) round(((alquiler * 12) / precio) * 100, 2) else 0
+      yield <- rentabilidad_bruta(req(input$precio_compra), req(input$alquiler_mensual))
       
       valueBox(
         paste0(yield, " %"),
@@ -167,9 +93,7 @@ calculadoraServer <- function(id, datos = NULL) {
     
     output$kpi_cashflow_mensual <- renderValueBox({
       sim <- simulacion()
-      alquiler <- req(input$alquiler_mensual)
-      gastos_m <- req(input$gastos_mantenimiento) / 12
-      cf_mensual <- alquiler - gastos_m - sim$cuota_mensual
+      cf_mensual <- cash_flow_mensual(req(input$alquiler_mensual), req(input$gastos_mantenimiento), sim$cuota_mensual)
       
       col_color <- if (cf_mensual >= 0) "green" else "red"
       

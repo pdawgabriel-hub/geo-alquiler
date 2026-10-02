@@ -42,31 +42,25 @@ app_server <- function(input, output, session) {
   datos_filtrados_sidebar <- filtrosServer("filtros_sidebar", datos_totales)
   datos_visibles <- mapaServer("mapa_principal", datos_filtrados_sidebar)
   
-  # 3. KPIs principales
+  # 3. KPIs principales (cálculo en kpis_mercado(), R/fct_calculos.R)
+  kpis <- reactive(kpis_mercado(datos_visibles()))
+
   output$kpi_precio_medio <- shinydashboard::renderValueBox({
-    df <- datos_visibles()
-    precio_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio, na.rm = TRUE)) else 0
-    shinydashboard::valueBox(paste0(precio_med, " €"), "Precio Medio", icon = icon("euro-sign"), color = "purple")
+    shinydashboard::valueBox(paste0(kpis()$precio_medio, " €"), "Precio Medio", icon = icon("euro-sign"), color = "purple")
   })
-  
+
   output$kpi_superficie_media <- shinydashboard::renderValueBox({
-    df <- datos_visibles()
-    sup_med <- if (!is.null(df) && nrow(df) > 0) round(mean(df$superficie, na.rm = TRUE)) else 0
-    shinydashboard::valueBox(paste0(sup_med, " m²"), "Superficie Media", icon = icon("home"), color = "green")
+    shinydashboard::valueBox(paste0(kpis()$superficie_media, " m²"), "Superficie Media", icon = icon("home"), color = "green")
   })
-  
+
   output$kpi_precio_m2 <- shinydashboard::renderValueBox({
-    df <- datos_visibles()
-    precio_m2 <- if (!is.null(df) && nrow(df) > 0) round(mean(df$precio / df$superficie, na.rm = TRUE), 1) else 0
-    shinydashboard::valueBox(paste0(precio_m2, " €/m²"), "Precio/m² Medio", icon = icon("calculator"), color = "orange")
+    shinydashboard::valueBox(paste0(kpis()$precio_m2_medio, " €/m²"), "Precio/m² Medio", icon = icon("calculator"), color = "orange")
   })
-  
+
   output$kpi_total_inmuebles <- shinydashboard::renderValueBox({
-    df <- datos_visibles()
-    tot <- if (!is.null(df)) nrow(df) else 0
-    shinydashboard::valueBox(tot, "Inmuebles Visibles", icon = icon("building"), color = "blue")
+    shinydashboard::valueBox(kpis()$total, "Inmuebles Visibles", icon = icon("building"), color = "blue")
   })
-  
+
   # 4. Instancia de Servidores Modulares
   tablaServer("tabla_principal", datos_visibles, favoritos_ids)
   graficosServer("grafico_principal", datos_visibles)

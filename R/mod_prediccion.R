@@ -53,19 +53,9 @@ prediccionServer <- function(id, datos_totales) {
       df <- datos_totales
       req(nrow(df) > 10)
 
-      # lm() no admite factor(x) si x solo tiene 1 nivel ("contrasts can be
-      # applied only to factors with 2 or more levels") -- pasa, por ejemplo,
-      # al entrenar con datos de una única ciudad. Construimos la fórmula
-      # dinámicamente, dejando fuera los predictores categóricos que no
-      # aporten al menos 2 niveles con los datos actuales.
-      terminos <- c("superficie")
-      if ("habitaciones" %in% names(df)) terminos <- c(terminos, "habitaciones")
-      if ("banos" %in% names(df)) terminos <- c(terminos, "banos")
-      if ("ciudad" %in% names(df) && length(unique(df$ciudad)) >= 2) terminos <- c(terminos, "factor(ciudad)")
-      if ("tipo" %in% names(df) && length(unique(df$tipo)) >= 2) terminos <- c(terminos, "factor(tipo)")
-
-      formula_modelo <- stats::as.formula(paste("precio ~", paste(terminos, collapse = " + ")))
-      lm(formula_modelo, data = df)
+      # La fórmula deja fuera los predictores categóricos con un solo nivel,
+      # con los que lm() falla (ver formula_prediccion(), R/fct_calculos.R).
+      lm(formula_prediccion(df), data = df)
     })
     
     prediccion_res <- eventReactive(input$btn_predecir, {

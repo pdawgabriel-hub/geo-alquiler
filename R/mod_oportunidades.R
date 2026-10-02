@@ -57,34 +57,7 @@ oportunidadesServer <- function(id, datos_visibles) {
     
     # Cálculo reactivo de oportunidades
     df_oportunidades <- reactive({
-      df <- datos_visibles()
-      if (is.null(df) || nrow(df) == 0) return(NULL)
-      
-      # Trabajar sobre una copia limpia
-      df_calc <- df
-      
-      # Calcular precio por m2 individual
-      df_calc$precio_m2 <- df_calc$precio / df_calc$superficie
-      
-      # Calcular la media por ciudad dentro de los datos visibles
-      medias_ciudad <- aggregate(precio_m2 ~ ciudad, data = df_calc, FUN = mean)
-      colnames(medias_ciudad)[2] <- "media_ciudad_m2"
-      
-      # Unir con el dataset principal
-      df_calc <- merge(df_calc, medias_ciudad, by = "ciudad")
-      
-      # Ratio de diferencia frente a la media
-      df_calc$pct_diferencia <- ((df_calc$media_ciudad_m2 - df_calc$precio_m2) / df_calc$media_ciudad_m2) * 100
-      
-      # Filtrar las oportunidades que superen el umbral seleccionado
-      oportunidades <- df_calc[df_calc$pct_diferencia >= input$pct_descuento, ]
-      
-      # Ordenar por mayor porcentaje de oportunidad
-      if (nrow(oportunidades) > 0) {
-        oportunidades <- oportunidades[order(-oportunidades$pct_diferencia), ]
-      }
-      
-      return(oportunidades)
+      detectar_oportunidades(datos_visibles(), input$pct_descuento)
     })
     
     # --- KPIs ---

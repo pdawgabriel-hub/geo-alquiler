@@ -63,6 +63,8 @@ geo-alquiler/
 │   ├── mod_calculadora.R  # Calculadora de rentabilidad
 │   ├── mod_reporte.R      # Informe ejecutivo descargable
 │   ├── mod_observatorio.R # Observatorio del Alquiler (mapa coroplético municipal)
+│   ├── fct_calculos.R     # Cálculos de negocio sin Shiny: KPIs, encuadre del mapa, hipoteca y
+│   │                      #   proyección, oportunidades, similitud KNN, fórmula de predicción
 │   └── fct_observatorio.R # Lógica del observatorio sin Shiny: indicadores, formato,
 │                          #   motivos de "sin dato", WKB -> sf, JSON de geometría, caché
 ├── inst/app/
@@ -361,7 +363,7 @@ Rscript -e 'testthat::test_file("tests/testthat/test_observatorio.R")'   # uno c
 
 | Fichero | Qué cubre |
 |---|---|
-| `test_calculos.R` | Cálculo de métricas (precio/m²) y KPIs ante conjuntos de datos vacíos |
+| `test_calculos.R` | Las funciones de `fct_calculos.R`: KPIs (incluido el conjunto vacío); validación del encuadre del mapa (el caso del encuadre degenerado que vaciaba las pantallas); cuota hipotecaria con un valor de referencia (200.000 € a 30 años al 3 % = 843,21 €/mes) y sin interés; proyección año a año (entrada, actualización del alquiler, revalorización, deuda saldada al final); oportunidades frente a la media de su ciudad; distancia y orden del recomendador KNN, con y sin coordenadas; y que la fórmula de predicción no rompa `lm()` con una sola ciudad. Incluye un `testServer` que comprueba que la Calculadora pasa los porcentajes de los inputs a tanto por uno |
 | `test_mod_tabla.R`, `test_tabla.R` | Módulo de tabla y gestión de favoritos (`testServer`) |
 | `test_observatorio.R` | Indicadores derivados y datos ausentes; formato numérico español; cortes por cuantiles; reconstrucción de la geometría; normalización, cruce exacto y aproximado de nombres de municipio; motivo de cada dato ausente; parseo de las tablas del Catastro; que el JSON de geometría generado a mano sea idéntico al de Leaflet; la caché por ámbito; y el módulo completo con `testServer` |
 
@@ -405,7 +407,7 @@ Lecciones de los despliegues:
 | Cambiar el año del Observatorio | `ANIO_OBSERVATORIO` en `00_config.R`, y la URL de SERPAVI en `09_observatorio.R` si el Ministerio publica una capa nueva | La app |
 | Corregir el cruce de un municipio del Catastro | `EQUIVALENCIAS_CATASTRO` en `09_observatorio.R` | — |
 | Añadir una pantalla nueva | Un `R/mod_nuevo.R`; registrarlo en `app_ui.R` (menú + `tabItem`) y en `app_server.R`, decidiendo qué dataset recibe | El resto de módulos |
-| Cambiar un cálculo | La función en `fct_*.R` o en el módulo, y su test en `tests/testthat/` | — |
+| Cambiar un cálculo de negocio | La función en `R/fct_calculos.R` (o `fct_observatorio.R`) y su test en `tests/testthat/` | El módulo, que solo llama a la función |
 | Añadir un fichero de datos a la app | `inst/app/data/` y la lista de `scripts/deploy.R` | — |
 
 [⬆ Volver arriba](#top)
