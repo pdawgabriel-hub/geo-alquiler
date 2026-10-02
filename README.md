@@ -108,7 +108,7 @@ A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciu
 
 | Indicador | Fuente | Cálculo |
 |---|---|---|
-| Alquiler mediano (€/m² y €/mes) | SERPAVI — Ministerio de Vivienda y Agenda Urbana | Mediana de los contratos de alquiler declarados en el IRPF (vivienda colectiva) |
+| Alquiler mediano (€/m² y €/mes) | SERPAVI — Ministerio de Vivienda y Agenda Urbana | Mediana de los contratos de alquiler declarados en el IRPF. Se usa la de vivienda colectiva (pisos); donde SERPAVI solo la publica para unifamiliares (749 municipios, p. ej. Torrent), se usa esa y la ficha lo indica |
 | Esfuerzo de alquiler (% renta) | SERPAVI + INE | 12 × alquiler mensual mediano / renta neta media por hogar |
 | Renta neta media por hogar | INE — Atlas de Distribución de Renta de los Hogares | Dato directo |
 | Viviendas en alquiler (% del parque) | SERPAVI + Catastro | Viviendas con alquiler declarado / inmuebles de uso residencial |
@@ -118,9 +118,11 @@ A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciu
 Limitaciones que la propia app indica:
 
 - **País Vasco y Navarra** no aparecen en SERPAVI ni en el Catastro estatal (tienen Hacienda y Catastro forales), así que sus municipios solo tienen renta y población.
-- SERPAVI publica la mediana solo en los municipios con suficientes contratos declarados (2.217 de 8.131), que concentran el 88 % de la población. El resto se pinta en gris ("Sin dato").
+- SERPAVI publica la mediana solo en los municipios con suficientes contratos declarados (2.966 de 8.131, contando los 749 con dato solo de unifamiliares), que concentran el 90 % de la población. El resto se pinta en gris ("Sin dato").
+- Cuando falta un dato, la ficha del municipio explica el motivo (pocos contratos declarados, secreto estadístico del INE en municipios muy pequeños, régimen foral...) en vez de mostrar solo "s/d".
+- Los 86 polígonos con código 53xxx/54xxx no son municipios sino territorios compartidos entre varios (parzonerías, comunidades de montes). Se pintan en gris y su ficha lo indica.
 - "Viviendas en alquiler" cuenta **alquileres declarados** a Hacienda, así que es una cota inferior del peso real del alquiler.
-- El Catastro no publica el código INE en sus tablas municipales: se cruza por nombre normalizado dentro de cada provincia (99,5 % de acierto; los ~40 restantes son municipios renombrados, como Castrillo Matajudíos → Castrillo Mota de Judíos).
+- El Catastro no publica el código INE en sus tablas municipales: se cruza por nombre normalizado dentro de cada provincia y, para lo que queda, por nombre aproximado (renombramientos y nombres en otro idioma, p. ej. Castrillo Matajudíos → Castrillo Mota de Judíos o Santa Eulalia del Río → Santa Eulària des Riu). Dos renombramientos completos que no se pueden deducir con seguridad están en una tabla de equivalencias explícita (`EQUIVALENCIAS_CATASTRO`). Se cruzan los 7.612 nombres del Catastro; el pipeline lista en su salida los cruces aproximados para poder revisarlos.
 
 [⬆ Volver arriba](#top)
 

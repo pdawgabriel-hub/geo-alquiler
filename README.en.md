@@ -108,7 +108,7 @@ Unlike the rest of the app (which works with illustrative listings for 5 cities)
 
 | Indicator | Source | Calculation |
 |---|---|---|
-| Median rent (€/m² and €/month) | SERPAVI — Ministry of Housing and Urban Agenda | Median of rental contracts declared in personal income tax returns (apartment buildings) |
+| Median rent (€/m² and €/month) | SERPAVI — Ministry of Housing and Urban Agenda | Median of rental contracts declared in personal income tax returns. The apartment-building median is used; where SERPAVI only publishes it for single-family homes (749 municipalities, e.g. Torrent), that one is used and the profile card says so |
 | Rent burden (% of income) | SERPAVI + INE | 12 × median monthly rent / average net household income |
 | Average net household income | INE — Household Income Distribution Atlas (ADRH) | Direct value |
 | Rented homes (% of housing stock) | SERPAVI + Cadastre | Homes with declared rental income / residential-use properties |
@@ -118,9 +118,11 @@ Unlike the rest of the app (which works with illustrative listings for 5 cities)
 Limitations the app itself points out:
 
 - **The Basque Country and Navarre** are not in SERPAVI or the national Cadastre (they have their own regional tax and cadastre authorities), so their municipalities only have income and population.
-- SERPAVI only publishes the median for municipalities with enough declared contracts (2,217 of 8,131), which together hold 88% of the population. The rest are shown in grey ("Sin dato" / no data).
+- SERPAVI only publishes the median for municipalities with enough declared contracts (2,966 of 8,131, counting the 749 with single-family data only), which together hold 90% of the population. The rest are shown in grey ("Sin dato" / no data).
+- When a value is missing, the municipality's profile card explains why (too few declared contracts, INE statistical confidentiality for very small municipalities, regional tax regime...) instead of just showing "s/d".
+- The 86 polygons with 53xxx/54xxx codes aren't municipalities but territories shared between several (common land and forest communities). They're shown in grey and their profile card says so.
 - "Rented homes" counts **rentals declared** to the tax agency, so it's a lower bound on the real share of renting.
-- The Cadastre doesn't publish the INE code in its municipal tables, so they're matched by normalized name within each province (99.5% match rate; the ~40 left over are renamed municipalities, e.g. Castrillo Matajudíos → Castrillo Mota de Judíos).
+- The Cadastre doesn't publish the INE code in its municipal tables, so they're matched by normalized name within each province and, for whatever is left, by approximate name (renamed municipalities and names in another language, e.g. Castrillo Matajudíos → Castrillo Mota de Judíos or Santa Eulalia del Río → Santa Eulària des Riu). Two complete renames that can't be inferred safely live in an explicit equivalence table (`EQUIVALENCIAS_CATASTRO`). All 7,612 Cadastre names are matched; the pipeline lists the approximate matches in its output so they can be reviewed.
 
 [⬆ Back to top](#top)
 

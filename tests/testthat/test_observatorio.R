@@ -102,6 +102,37 @@ test_that("emparejar_municipios cruza por nombre y descarta claves ambiguas", {
   expect_equal(res, c("03014", NA, NA))
 })
 
+test_that("emparejar_aproximado cruza renombramientos y nombres en otro idioma, sin forzar casos dudosos", {
+  catalogo <- data.frame(
+    cod_ine = c("43131", "17034", "46204", "46024", "46222"),
+    nombre = c("Roda de Berà", "Calonge i Sant Antoni", "Puig de Santa Maria, el",
+               "Alfara de la Baronia", "Sant Joanet")
+  )
+  res <- emparejar_aproximado(c("Roda de Barà", "Calonge", "Puig", "Alfara de Algimia", "Sant Joan de l'Ènova"), catalogo)
+  expect_equal(res[1:3], c("43131", "17034", "46204"))
+  # Dos renombramientos completos a la vez: no se adivina cuál es cuál
+  expect_equal(res[4:5], c(NA_character_, NA_character_))
+
+  # Si solo queda un nombre y un código sin cruzar, se emparejan entre sí
+  expect_equal(emparejar_aproximado("Santa Maria de Corcó", data.frame(cod_ine = "08254", nombre = "Esquirol, L'")), "08254")
+})
+
+test_that("motivo_sin_dato explica cada dato ausente y no dice nada si el dato existe", {
+  base <- data.frame(cod_ine = "28079", alquiler_m2_mediana = 12, renta_hogar = 40000,
+                     inmuebles_residenciales = 100, poblacion = 1000)
+  expect_null(motivo_sin_dato(base, "alquiler_m2_mediana"))
+
+  pueblo <- transform(base, alquiler_m2_mediana = NA, renta_hogar = NA, esfuerzo_alquiler_pct = NA)
+  expect_match(motivo_sin_dato(pueblo, "alquiler_m2_mediana"), "pocos contratos")
+  expect_match(motivo_sin_dato(pueblo, "renta_hogar"), "secreto estadístico")
+  expect_match(motivo_sin_dato(pueblo, "esfuerzo_alquiler_pct"), "pocos contratos")
+
+  bilbao <- transform(base, cod_ine = "48020", alquiler_m2_mediana = NA, inmuebles_residenciales = NA,
+                      valor_catastral_medio = NA)
+  expect_match(motivo_sin_dato(bilbao, "alquiler_m2_mediana"), "foral")
+  expect_match(motivo_sin_dato(bilbao, "valor_catastral_medio"), "foral")
+})
+
 test_that("numero_es interpreta el formato numérico español del INE y el Catastro", {
   expect_equal(numero_es(c("1.502.436", "12,5", "..", "")), c(1502436, 12.5, NA, NA))
 })

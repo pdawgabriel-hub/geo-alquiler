@@ -69,6 +69,40 @@ formatear_indicador <- function(valor, id) {
   )
 }
 
+#' Por qué un municipio no tiene dato en un indicador
+#'
+#' En el observatorio un dato ausente casi nunca es un error: cada fuente
+#' deja fuera municipios por motivos distintos. La ficha muestra este texto
+#' junto al "s/d" para que no parezca un fallo de la app. Devuelve NULL si
+#' el valor no falta.
+#' @noRd
+motivo_sin_dato <- function(fila, id) {
+  if (!is.na(fila[[id]])) return(NULL)
+
+  foral <- substr(fila$cod_ine, 1, 2) %in% c("01", "20", "31", "48")
+  sin_alquiler <- is.na(fila$alquiler_m2_mediana)
+  sin_renta <- is.na(fila$renta_hogar)
+  sin_catastro <- is.na(fila$inmuebles_residenciales)
+
+  motivo_foral <- "País Vasco y Navarra no están en SERPAVI ni en el Catastro estatal (régimen foral)"
+  motivo_alquiler <- "SERPAVI no publica la mediana: muy pocos contratos de alquiler declarados"
+  motivo_renta <- "el INE no publica la renta de municipios tan pequeños (secreto estadístico)"
+  motivo_catastro <- "sin estadística del Catastro para este municipio"
+
+  switch(
+    id,
+    alquiler_m2_mediana = ,
+    alquiler_mes_mediana = if (foral) motivo_foral else motivo_alquiler,
+    esfuerzo_alquiler_pct = if (foral) motivo_foral else if (sin_alquiler) motivo_alquiler else motivo_renta,
+    renta_hogar = motivo_renta,
+    pct_viviendas_alquiler = ,
+    valor_catastral_medio = if (foral) motivo_foral else if (sin_catastro) motivo_catastro else "sin dato",
+    poblacion = ,
+    crecimiento_poblacion_pct = "sin cifra oficial del padrón para este municipio",
+    "sin dato"
+  )
+}
+
 #' Cortes por cuantiles para la escala de color del mapa
 #'
 #' Una escala lineal se "comería" casi todo el mapa con el mismo color, porque

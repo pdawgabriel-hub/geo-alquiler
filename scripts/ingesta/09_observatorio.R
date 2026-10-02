@@ -34,6 +34,15 @@
 # (régimen foral).
 PROVINCIAS_CATASTRO <- sprintf("%02d", setdiff(1:52, c(1, 20, 31, 48)))
 
+# Nombres del Catastro que el cruce automático (exacto + aproximado) no puede
+# resolver con seguridad: renombramientos completos en una provincia donde
+# quedan varios sin cruzar a la vez. Clave = "<provincia>|<nombre en el
+# Catastro>", valor = código INE.
+EQUIVALENCIAS_CATASTRO <- c(
+  "46|Alfara de Algimia"    = "46024",  # hoy Alfara de la Baronia
+  "46|Sant Joan de l'Ènova" = "46222"   # hoy Sant Joanet (antes San Juan de Énova)
+)
+
 URL_SERPAVI_MUNICIPIOS <- "https://cdn.mivau.gob.es/portal-web-mivau/vivienda/serpavi/ALQ_Municipios_2022_Web.zip"
 URL_INE_ADRH_NACIONAL  <- "https://www.ine.es/jaxiT3/files/t/es/csv_bdsc/30824.csv"
 URL_INE_PADRON         <- "https://www.ine.es/jaxiT3/files/t/es/csv_bdsc/29005.csv"
@@ -126,6 +135,59 @@ emparejar_municipios <- function(nombres, catalogo) {
   }, character(1))
 }
 
+#' Segunda pasada para los nombres que no cruzan exactamente: municipios
+#' renombrados o con el nombre en otro idioma en una de las fuentes ("Roda de
+#' Berà" / "Roda de Barà", "Calonge i Sant Antoni" / "Calonge", "Santa
+#' Eulària des Riu" / "Santa Eulalia del Río").
+#'
+#' Trabaja solo con lo que ha quedado sin cruzar en una provincia, así que el
+#' número de candidatos es pequeño. Se empareja de mejor a peor parecido, y
+#' solo si los nombres normalizados son parecidos (distancia de edición
+#' relativa <= `umbral`) o uno contiene al otro. Al final, si en la provincia
+#' queda exactamente un nombre y un código sin cruzar, se emparejan entre sí
+#' (cubre renombramientos completos, p. ej. "Santa Maria de Corcó" ->
+#' "L'Esquirol"). Devuelve el cod_ine de cada nombre o NA.
+emparejar_aproximado <- function(nombres, catalogo, umbral = 0.35) {
+  resultado <- rep(NA_character_, length(nombres))
+  if (length(nombres) == 0 || nrow(catalogo) == 0) return(resultado)
+
+  claves_nom <- claves_municipio(nombres)
+  claves_cat <- claves_municipio(catalogo$nombre)
+  codigos <- unique(catalogo$cod_ine)
+
+  # Distancia de cada nombre a cada código: la mejor entre todas sus variantes
+  distancia <- function(a, b) {
+    if (nchar(a) >= 4 && nchar(b) >= 4 && (grepl(a, b, fixed = TRUE) || grepl(b, a, fixed = TRUE))) return(0.1)
+    utils::adist(a, b)[1, 1] / max(nchar(a), nchar(b))
+  }
+  m <- matrix(Inf, length(nombres), length(codigos))
+  for (i in seq_along(nombres)) {
+    for (j in seq_along(codigos)) {
+      cl_cod <- unlist(claves_cat[catalogo$cod_ine == codigos[j]])
+      for (a in claves_nom[[i]]) for (b in cl_cod) m[i, j] <- min(m[i, j], distancia(a, b))
+    }
+  }
+
+  repeat {
+    if (!any(is.finite(m)) || min(m) > umbral) break
+    k <- which(m == min(m), arr.ind = TRUE)
+    # Entre pares empatados se aceptan los que no compiten por el mismo
+    # nombre ni por el mismo código; los ambiguos se descartan.
+    unicos <- !(k[, 1] %in% k[duplicated(k[, 1]), 1]) & !(k[, 2] %in% k[duplicated(k[, 2]), 2])
+    for (r in which(unicos)) {
+      resultado[k[r, 1]] <- codigos[k[r, 2]]
+      m[k[r, 1], ] <- Inf
+      m[, k[r, 2]] <- Inf
+    }
+    m[k[!unicos, , drop = FALSE]] <- Inf
+  }
+
+  libres_nom <- which(is.na(resultado))
+  libres_cod <- setdiff(codigos, resultado)
+  if (length(libres_nom) == 1 && length(libres_cod) == 1) resultado[libres_nom] <- libres_cod
+  resultado
+}
+
 # --- 1. SERPAVI (Ministerio de Vivienda) --------------------------------------
 
 descargar_serpavi <- function() {
@@ -151,11 +213,20 @@ descargar_serpavi <- function() {
 #' Lee el shapefile municipal de SERPAVI. Los nombres de columna vienen
 #' truncados a 10 caracteres por el formato DBF; aquí se traducen a nombres
 #' legibles. VC = vivienda colectiva (pisos), VU = vivienda unifamiliar.
+#'
+#' Se usa la mediana de vivienda colectiva, que es la referencia habitual.
+#' Pero SERPAVI solo la publica si hay suficientes contratos de pisos, y en
+#' ~750 municipios (incluido Torrent, con 80.000 habitantes) solo hay mediana
+#' de unifamiliares: en esos casos se usa la de unifamiliares en vez de dejar
+#' el municipio sin dato, y `tipo_vivienda_alquiler` lo indica para que la
+#' app lo advierta (el €/m² de una casa no es comparable 1:1 con el de un
+#' piso).
 parsear_serpavi <- function(ruta_shp) {
   x <- sf::st_read(ruta_shp, quiet = TRUE)
 
   esperadas <- c("CodINE", "CPRO", "LITPRO", "NAMEUNIT", "Num_VC", "Renta_Medi", "Renta_Perc",
-                 "Renta_Pe_1", "Cuantia_me", "Superficie", "Num_VU")
+                 "Renta_Pe_1", "Cuantia_me", "Superficie", "Num_VU", "Renta_Me_1", "Renta_Pe_2",
+                 "Renta_Pe_3", "Superfic_3")
   faltan <- setdiff(esperadas, names(x))
   if (length(faltan) > 0) {
     stop("[SERPAVI] Faltan columnas esperadas en el shapefile: ", paste(faltan, collapse = ", "),
@@ -166,20 +237,41 @@ parsear_serpavi <- function(ruta_shp) {
   # El campo de mediana de la cuantía mensual es "Cuantía_m" (con tilde); se
   # localiza por posición relativa para no depender de la codificación.
   col_cuantia_med <- grep("^Cuant.a_m$", names(x), value = TRUE)
-  if (length(col_cuantia_med) != 1) stop("[SERPAVI] No se encuentra la columna de mediana de cuantía mensual (Cuantía_m)")
+  col_cuantia_med_vu <- grep("^Cuant.a_1$", names(x), value = TRUE)
+  if (length(col_cuantia_med) != 1 || length(col_cuantia_med_vu) != 1) {
+    stop("[SERPAVI] No se encuentran las columnas de mediana de cuantía mensual (Cuantía_m / Cuantía_1)")
+  }
 
   cero_a_na <- function(v) ifelse(is.na(v) | v <= 0, NA_real_, v)
+  colectiva <- !is.na(cero_a_na(x$Renta_Medi))
+  unifamiliar <- !colectiva & !is.na(cero_a_na(x$Renta_Me_1))
+  # Valor de vivienda colectiva si existe; si no, el de unifamiliar
+  elegir <- function(col_vc, col_vu) {
+    ifelse(colectiva, cero_a_na(x[[col_vc]]), ifelse(unifamiliar, cero_a_na(x[[col_vu]]), NA_real_))
+  }
+
+  # SERPAVI deja vacíos código y nombre de provincia en las forales (no las
+  # cubre); sin ellos esos municipios saldrían como "NA" y no se podrían
+  # elegir en el selector de ámbito de la app.
+  cod_provincia <- ifelse(is.na(x$CPRO), substr(x$CodINE, 1, 2), x$CPRO)
+  provincias_forales <- c("01" = "Araba/Álava", "20" = "Gipuzkoa", "31" = "Navarra", "48" = "Bizkaia")
+  provincia <- ifelse(is.na(x$LITPRO), unname(provincias_forales[cod_provincia]), x$LITPRO)
 
   sf::st_sf(
     cod_ine = x$CodINE,
-    cod_provincia = x$CPRO,
-    provincia = x$LITPRO,
+    cod_provincia = cod_provincia,
+    provincia = provincia,
     municipio = x$NAMEUNIT,
-    alquiler_m2_mediana = cero_a_na(x$Renta_Medi),
-    alquiler_m2_p25 = cero_a_na(x$Renta_Perc),
-    alquiler_m2_p75 = cero_a_na(x$Renta_Pe_1),
-    alquiler_mes_mediana = cero_a_na(x[[col_cuantia_med]]),
-    superficie_mediana = cero_a_na(x$Superficie),
+    # Los códigos 53xxx/54xxx del IGN no son municipios sino territorios
+    # compartidos entre varios (parzonerías, comunidades de montes): tienen
+    # polígono pero ninguna fuente estadística los cubre.
+    es_municipio = !substr(x$CodINE, 1, 2) %in% c("53", "54"),
+    tipo_vivienda_alquiler = ifelse(colectiva, "colectiva", ifelse(unifamiliar, "unifamiliar", NA_character_)),
+    alquiler_m2_mediana = elegir("Renta_Medi", "Renta_Me_1"),
+    alquiler_m2_p25 = elegir("Renta_Perc", "Renta_Pe_2"),
+    alquiler_m2_p75 = elegir("Renta_Pe_1", "Renta_Pe_3"),
+    alquiler_mes_mediana = elegir(col_cuantia_med, col_cuantia_med_vu),
+    superficie_mediana = elegir("Superficie", "Superfic_3"),
     viviendas_alquiler = x$Num_VC + x$Num_VU,
     geometry = sf::st_geometry(x)
   )
@@ -411,7 +503,7 @@ descargar_catastro <- function(anio = ANIO_OBSERVATORIO) {
 
 #' Asigna código INE a las filas del Catastro cruzando por nombre dentro de
 #' cada provincia (el Catastro no publica el código INE en estas tablas).
-parsear_catastro <- function(ruta, catalogo_ine) {
+parsear_catastro <- function(ruta, catalogo_ine, codigos_validos = unique(catalogo_ine$cod_ine)) {
   df <- utils::read.csv(ruta, stringsAsFactors = FALSE, encoding = "UTF-8",
                         colClasses = c(cod_provincia = "character"))
   df$cod_provincia <- sprintf("%02d", as.integer(df$cod_provincia))
@@ -422,11 +514,36 @@ parsear_catastro <- function(ruta, catalogo_ine) {
     cat_prov <- catalogo_ine[substr(catalogo_ine$cod_ine, 1, 2) == prov, ]
     df$cod_ine[i] <- emparejar_municipios(df$municipio[i], cat_prov)
   }
+
+  # Equivalencias manuales (ver EQUIVALENCIAS_CATASTRO)
+  clave_eq <- paste0(df$cod_provincia, "|", df$municipio)
+  manual <- is.na(df$cod_ine) & clave_eq %in% names(EQUIVALENCIAS_CATASTRO)
+  df$cod_ine[manual] <- unname(EQUIVALENCIAS_CATASTRO[clave_eq[manual]])
+
+  # Segunda pasada aproximada con lo que queda sin cruzar en cada provincia
+  aproximados <- character(0)
+  for (prov in unique(df$cod_provincia)) {
+    i <- which(df$cod_provincia == prov & is.na(df$cod_ine) & !grepl("^Total$", df$municipio))
+    if (length(i) == 0) next
+    libres <- setdiff(codigos_validos[substr(codigos_validos, 1, 2) == prov], df$cod_ine)
+    cat_libre <- catalogo_ine[catalogo_ine$cod_ine %in% libres, ]
+    cods <- emparejar_aproximado(df$municipio[i], cat_libre)
+    df$cod_ine[i] <- cods
+    ok <- !is.na(cods)
+    if (any(ok)) {
+      nombre_ine <- catalogo_ine$nombre[match(cods[ok], catalogo_ine$cod_ine)]
+      aproximados <- c(aproximados, paste0(df$municipio[i][ok], " -> ", nombre_ine))
+    }
+  }
+  if (length(aproximados) > 0) {
+    message("  [Catastro] Cruzados por nombre aproximado (", length(aproximados), "): ",
+            paste(aproximados, collapse = "; "))
+  }
   sin_cruce <- df[is.na(df$cod_ine), ]
   # El Catastro incluye una fila "Total" por provincia que no es un municipio
-  sin_cruce <- sin_cruce[!grepl("^Total", sin_cruce$municipio), ]
+  sin_cruce <- sin_cruce[!grepl("^Total$", sin_cruce$municipio), ]
   message("  [Catastro] Municipios cruzados con código INE: ", sum(!is.na(df$cod_ine)), "/",
-          sum(!grepl("^Total", df$municipio)))
+          sum(!grepl("^Total$", df$municipio)))
   if (nrow(sin_cruce) > 0) {
     message("  [Catastro] Sin cruce (", nrow(sin_cruce), "), p. ej.: ",
             paste(utils::head(paste0(sin_cruce$municipio, " (", sin_cruce$cod_provincia, ")"), 8), collapse = "; "))
@@ -502,7 +619,9 @@ generar_observatorio <- function() {
     data.frame(cod_ine = serpavi$cod_ine, nombre = serpavi$municipio)
   )
   catalogo <- unique(catalogo[!is.na(catalogo$nombre), ])
-  catastro <- parsear_catastro(descargar_catastro(), catalogo)
+  # Solo códigos de municipios reales (con población del INE) como destino
+  codigos_validos <- poblacion$cod_ine[!is.na(poblacion$poblacion)]
+  catastro <- parsear_catastro(descargar_catastro(), catalogo, codigos_validos)
 
   message("== Cruzando fuentes y simplificando geometría ==")
   obs <- construir_observatorio(serpavi, renta, poblacion, catastro)

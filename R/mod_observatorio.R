@@ -320,15 +320,33 @@ observatorioServer <- function(id, datos_observatorio) {
       fila <- tabla_obs[tabla_obs$cod_ine == cod, ]
       req(nrow(fila) == 1)
 
+      # Territorios compartidos entre municipios (parzonerías, comunidades de
+      # montes): tienen polígono en el mapa pero ninguna fuente los cubre.
+      if (isFALSE(fila$es_municipio)) {
+        return(tagList(
+          h3(style = "margin-top:0;", fila$municipio),
+          p(style = "color:#666;", icon("circle-info"),
+            " Territorio compartido entre varios municipios, no un municipio en sí. ",
+            "Ni SERPAVI, ni el INE ni el Catastro publican datos para estos territorios.")
+        ))
+      }
+
       ind <- indicadores_observatorio()
+      alquiler_unifamiliar <- identical(fila$tipo_vivienda_alquiler, "unifamiliar")
       filas_tabla <- lapply(seq_len(nrow(ind)), function(i) {
         id_ind <- ind$id[i]
         v <- fila[[id_ind]]
         # Percentil frente al resto de municipios de España con dato
         todos <- tabla_obs[[id_ind]]
         pct <- if (is.na(v)) NA else round(100 * mean(todos[!is.na(todos)] <= v))
+        motivo <- motivo_sin_dato(fila, id_ind)
+        nota_unifamiliar <- alquiler_unifamiliar && !is.na(v) &&
+          id_ind %in% c("alquiler_m2_mediana", "alquiler_mes_mediana", "esfuerzo_alquiler_pct")
         tags$tr(
-          tags$td(ind$etiqueta[i], tags$br(), tags$small(style = "color:#888;", ind$fuente[i])),
+          tags$td(ind$etiqueta[i], tags$br(), tags$small(style = "color:#888;", ind$fuente[i]),
+                  if (!is.null(motivo)) tags$div(tags$small(style = "color:#b9770e;", motivo)),
+                  if (nota_unifamiliar) tags$div(tags$small(style = "color:#b9770e;",
+                    "dato de vivienda unifamiliar: SERPAVI no publica mediana de pisos aquí"))),
           tags$td(style = "text-align:right; white-space:nowrap;",
                   tags$b(formatear_indicador(v, id_ind)),
                   if (!is.na(pct)) tags$div(tags$small(style = "color:#888;", paste0("percentil ", pct))))
