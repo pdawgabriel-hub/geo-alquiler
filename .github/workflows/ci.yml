@@ -24,7 +24,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Librerías del sistema que necesitan sf, terra y arrow (geometría del
       # Observatorio y lectura de Parquet)
@@ -68,7 +68,7 @@ jobs:
             echo "::notice::Sin secretos SHINYAPPS_TOKEN/SHINYAPPS_SECRET: se omite el despliegue."
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.credenciales.outputs.disponibles == 'true'
 
       - name: Instalar librerías del sistema
