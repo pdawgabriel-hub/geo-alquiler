@@ -10,6 +10,7 @@
 ^data/raw$
 ^tests$
 ^man$
+^docs$
 ^README.*\.md$
 ^LICENSE.*\.md$
 ^reporte_plantilla\.Rmd$

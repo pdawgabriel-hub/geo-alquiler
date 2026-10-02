@@ -22,15 +22,10 @@
   - [2. Analytics & Machine Learning](#analytics-ml)
   - [3. Investment Tools](#investment-tools)
   - [4. Spain Rental Observatory](#observatory)
-- [Performance & Responsive Design](#performance-responsive)
 - [Screenshots](#screenshots)
-- [Project Structure (`{golem}`)](#project-structure)
 - [Data Source](#data-source)
-- [Requirements & Installation](#requirements-installation)
-- [Usage & Execution](#usage-execution)
-- [Usage from the Terminal (without RStudio)](#terminal-usage)
-- [Testing & Quality](#testing-quality)
-- [Deployment](#deployment)
+- [Getting Started](#getting-started)
+- [Technical Documentation](#technical-documentation)
 - [License](#license)
 - [Author](#author)
 
@@ -69,7 +64,7 @@ The app is organized in three layers that don't mix, so every change has an obvi
 | Full dataset | Comparator, Prediction, Neighborhoods, Favorites | They need the whole market: training the model, comparing cities, not losing favorites when filtering |
 | Its own dataset | Observatory | Official data aggregated by municipality, independent of the filters |
 
-Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [Performance & Responsive Design](#performance-responsive)).
+Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [how it loads fast](docs/GUIA_TECNICA.md#rendimiento) in the technical guide, in Spanish).
 
 The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics). Per-zone prices come from real sources (Generalitat de Catalunya, Generalitat Valenciana, Basque Government) or, where no official source exists, from published indices documented by hand (see `scripts/ingesta/`).
 
@@ -142,38 +137,7 @@ Unlike the rest of the app (which works with illustrative listings for 5 cities)
 | Average cadastral value per residential property | Cadastre — Urban Real Estate Cadastre statistics | Residential cadastral value / number of residential properties |
 | Population and population growth | INE — Municipal Register (Padrón) | 2022 population and change from 2022 to the latest published year |
 
-Limitations the app itself points out:
-
-- **The Basque Country and Navarre** are not in SERPAVI or the national Cadastre (they have their own regional tax and cadastre authorities), so their municipalities only have income and population.
-- SERPAVI only publishes the median for municipalities with enough declared contracts (2,966 of 8,131, counting the 749 with single-family data only), which together hold 90% of the population. The rest are shown in grey ("Sin dato" / no data).
-- When a value is missing, the municipality's profile card explains why (too few declared contracts, INE statistical confidentiality for very small municipalities, regional tax regime...) instead of just showing "s/d".
-- The 86 polygons with 53xxx/54xxx codes aren't municipalities but territories shared between several (common land and forest communities). They're shown in grey and their profile card says so.
-- "Rented homes" counts **rentals declared** to the tax agency, so it's a lower bound on the real share of renting.
-- The Cadastre doesn't publish the INE code in its municipal tables, so they're matched by normalized name within each province and, for whatever is left, by approximate name (renamed municipalities and names in another language, e.g. Castrillo Matajudíos → Castrillo Mota de Judíos or Santa Eulalia del Río → Santa Eulària des Riu). Two complete renames that can't be inferred safely live in an explicit equivalence table (`EQUIVALENCIAS_CATASTRO`). All 7,612 Cadastre names are matched; the pipeline lists the approximate matches in its output so they can be reviewed.
-
-[⬆ Back to top](#top)
-
----
-
-<a id="performance-responsive"></a>
-## Performance & Responsive Design
-
-GeoAlquiler is meant to be used on both desktop and mobile — not just adapting visually, but loading fast on slower connections. That comes down to concrete architecture decisions, not just CSS:
-
-| Optimization | What it solves |
-|---|---|
-| **Native `plotly` charts (not `ggplotly()`)** | All 10 interactive charts are built directly with `plot_ly()`/`add_trace()` instead of converting a `ggplot2` object via `ggplotly()`, which produces a noticeably heavier JSON payload for the same chart. |
-| **Server-side pre-binned histograms** | Histograms compute their bins in R with `hist()` and send only the already-aggregated bars, instead of sending every raw price to the browser for Plotly's `type = "histogram"` to bin client-side. |
-| **Transparent subsampling on dense charts** | The price/surface scatter plot and the Estadística Avanzada boxplots cap how many points travel to the browser (a random sample with a visible note of how many are being shown) when the filtered dataset is very large. |
-| **Server-side, per-neighborhood map aggregation** | The map's default layer doesn't send every individual listing — it sends a per-neighborhood summary (average price + listing count) computed in R, cutting thousands of points down to a couple hundred. Individual pins and the heatmap load on demand (`leafletProxy`) only if the user turns that layer on. |
-| **Clustering on marker-heavy maps** | The Opportunities map clusters (`markerClusterOptions`) its markers instead of drawing them all individually, so a loose threshold (hundreds of matches) doesn't overwhelm the browser. |
-| **Custom responsive CSS** (`inst/app/www/custom.css`) | Adjusts the (otherwise fixed-pixel) heights of the Leaflet/Plotly widgets, the map's layer control, and the `DT` table controls across screen widths, with `scrollX` enabled on every table so columns that don't fit can be scrolled instead of being cut off. |
-| **Minimal JS for mobile UX** (`inst/app/www/custom.js`) | The shinydashboard sidebar closes itself automatically after navigating to a tab on narrow screens, instead of staying open on top of the content. |
-| **Two levels of detail in the Observatory's geometry** | The pipeline stores the municipal polygons simplified at two tolerances: ~1.5 km for the all-of-Spain view (at zoom 5-6 one pixel is already ~2 km) and ~250 m for when a single province is selected. The national view goes from ~260,000 to ~90,000 vertices. |
-| **Recoloring in the browser instead of resending polygons** | When the Observatory's indicator changes, only each municipality's color and label change, not its shape. A small JS handler (`custom.js`) recolors the already-drawn polygons by INE code, so the change sends ~200 KB instead of resending all ~8,000 polygons. |
-| **Hand-serialized geometry, cached per process** | The standard path (`addPolygons()` + `jsonlite`) takes ~6 s to turn ~8,000 polygons into Leaflet's JSON, because it builds hundreds of thousands of nested lists. `geometria_a_json_leaflet()` produces the same JSON (a test compares it with Leaflet's) straight from the coordinates using vectorized operations, in ~1.4 s. The result is cached per area (Spain / each province), and the parquet file is read and converted to `sf` once per process rather than once per session. The map uses Leaflet's canvas renderer (`preferCanvas`), much lighter than SVG with thousands of polygons. |
-| **Map first, everything else after** | The polygons travel inside the map's own render, without waiting for the browser to report that the map exists. The chart and ranking also wait until the browser confirms the map has been painted: Shiny sends all outputs from one cycle together and won't paint any of them until every one's libraries have loaded, which the first time includes `plotly.js` (~3.5 MB). Locally, the national map now shows up ~1.2 s after opening the tab (previously ~3.2 s), and ~2.6 s the first time after the server starts (previously ~9.8 s). |
-| **API-key-free base maps** | Uses OpenStreetMap as the default base layer (CartoDB's Positron/DarkMatter maps now require an API key on their free tier). |
+The Basque Country and Navarre have no rent or Cadastre data (regional tax regime), and municipalities with very few declared contracts have no median rent. When a value is missing, the municipality's profile card explains why. Details on the sources, how they're joined and their limitations are in the [technical guide](docs/GUIA_TECNICA.md#pipeline-observatorio) (in Spanish).
 
 [⬆ Back to top](#top)
 
@@ -222,432 +186,60 @@ Below are the application's main screens, organized by the same functional block
 
 ---
 
-<a id="project-structure"></a>
-## Project Structure (`{golem}`)
-
-GeoAlquiler **is not a simple Shiny app in a single `app.R` file**, but rather an **R package** built with the **[`{golem}`](https://thinkr-open.github.io/golem/)** framework. This approach brings the advantages of a proper package (documentation with `roxygen2`, formal dependency management via `DESCRIPTION`, testing with `testthat`, and a clear development → build → deployment lifecycle) to a Shiny application of real-world size and complexity.
-
-```
-geo-alquiler/
-├── DESCRIPTION            # Package metadata and dependencies (Imports)
-├── app.R                  # Standardized launcher (pkgload::load_all + run_app())
-├── R/                     # Package source code (app namespace)
-│   ├── run_app.R          # Entry point: shinyApp(ui = app_ui, server = app_server)
-│   ├── app_ui.R            # Global UI: dashboardPage, sidebarMenu, and tabItems
-│   ├── app_server.R        # Global server: orchestrates reactive logic and calls each module
-│   ├── mod_mapa.R           # Module: interactive map + heatmap
-│   ├── mod_filtros.R        # Module: reactive global filters
-│   ├── mod_tabla.R          # Module: data explorer (DT)
-│   ├── mod_barrios.R        # Module: neighborhood analytics
-│   ├── mod_favoritos.R      # Module: favorites management
-│   ├── mod_exportar.R       # Module: CSV export
-│   ├── mod_graficos.R       # Module: visual analytics (plotly)
-│   ├── mod_estadistica.R    # Module: advanced statistics
-│   ├── mod_prediccion.R     # Module: price prediction (ML)
-│   ├── mod_recomendador.R   # Module: KNN recommender
-│   ├── mod_comparador.R     # Module: A/B comparator
-│   ├── mod_oportunidades.R  # Module: opportunity detector
-│   ├── mod_calculadora.R    # Module: profitability calculator
-│   ├── mod_reporte.R        # Module: downloadable executive report
-│   ├── mod_observatorio.R   # Module: Spain Rental Observatory (choropleth map)
-│   └── fct_observatorio.R   # Observatory logic without Shiny (indicators, formatting, "no data" reasons,
-│                            #   WKB -> sf, geometry serialization for Leaflet, per-process cache)
-├── inst/
-│   └── app/
-│       ├── data/           # Data bundled with the app (alquileres.parquet, observatorio_municipios.parquet)
-│       └── www/            # Responsive CSS/JS (custom.css, custom.js) -- see "Performance & Responsive Design"
-├── man/
-│   └── figures/            # Screenshots and architecture diagram used in this README
-├── data/
-│   └── processed/          # Processed data in .rds / .parquet formats
-├── scripts/
-│   └── ingesta/                    # Real-data ingestion pipeline (replaces the old
-│       ├── 00_config.R             # fictitious-data generator scripts)
-│       ├── 01_utils.R               # Cached download + geocoding (Nominatim)
-│       ├── 02_fuente_barcelona.R    # Real source: Generalitat de Catalunya (INCASÒL)
-│       ├── 03_fuente_valencia.R     # Real source: Generalitat Valenciana (deposits)
-│       ├── 04_fuente_bilbao.R       # Real source: Etxebide / Basque Government (EMAL report)
-│       ├── 05_anclas_manuales.R     # Hand-documented prices where no official source exists
-│       ├── 06_geocodificar_zonas.R  # Real lat/lon per zone
-│       ├── 07_armonizar_precios.R   # Combines all sources into a single table
-│       ├── 08_generar_anuncios.R    # Generates the individual listings the app uses
-│       ├── 09_observatorio.R        # Observatory: SERPAVI + INE (income, register) + Cadastre by municipality
-│       └── run_pipeline.R           # Orchestrator: Rscript scripts/ingesta/run_pipeline.R
-├── data/raw/
-│   └── anclas_manuales.csv        # Hand-documented prices (cities without an official source)
-├── reporte_plantilla.Rmd          # R Markdown template used by the Executive Report module
-├── tests/
-│   ├── testthat.R                 # Standard testthat runner for the package
-│   └── testthat/
-│       ├── test_calculos.R        # Calculation logic tests (price/m², KPIs, etc.)
-│       ├── test_mod_tabla.R       # Tests for the table module
-│       ├── test_tabla.R           # Additional table/data tests
-│       └── test_observatorio.R    # Observatory tests (indicators, name matching, geometry, module)
-├── renv.lock                      # renv lockfile (dependency reproducibility)
-└── geo-alquiler.Rproj             # RStudio project
-```
-
-### Architecture Philosophy
-
-- **UI/Server separation per module**: each feature (map, prediction, calculator, etc.) lives in its own `mod_*.R` file, following the [Shiny Modules](https://shiny.posit.co/r/articles/improve/modules/) pattern (`NS(id)`, a `*UI()` function, and a `*Server()` function). This avoids `inputId`/`outputId` collisions and lets `app_ui.R` and `app_server.R` act as **orchestrators** rather than containers of business logic.
-- **`app_ui.R`** defines exclusively the visual structure: the `dashboardPage` (`{shinydashboard}`), the navigation menu with its four blocks (Exploration, Analytics, Investment, Information), and the `tabItems` linking each tab to its corresponding module's `UI`.
-- **`app_server.R`** is responsible for instantiating each module's `server`, passing shared reactive state (e.g., data already filtered by `mod_filtros`), and coordinating communication between modules when needed (e.g., favorites available in the table).
-- **`run_app.R`** exposes the exported `run_app()` function, which wraps the `shinyApp` with `golem::with_golem_options()`, allowing configuration options (`golem_opts`) to be passed without touching the rest of the code — the standard pattern for any `{golem}`-based app.
-- **`app.R`** at the root is the "universal" launcher: it runs `pkgload::load_all()` to load the package in development mode and enables `golem.app.prod = TRUE`, making it compatible with both local `shiny::runApp()` and deployment servers (Shiny Server, Posit Connect, shinyapps.io, Docker containers, etc.) without needing to install the package first.
-- **Data as a bundled resource**: the dataset lives in `inst/app/data/`, ensuring it travels with the package and is available both in development and once installed/deployed, following `{golem}`'s convention for application assets.
-- **Reproducible dependency management**: the project uses `{renv}` (`renv.lock` + `.Rprofile`) to pin exact versions of every package, ensuring the development and deployment environments are identical.
-
-[⬆ Back to top](#top)
-
----
-
 <a id="data-source"></a>
 ## Data Source
 
-The dataset the app consumes (`inst/app/data/alquileres.parquet`) **is no longer generated from fictitious data**: it's built by an ingestion pipeline (`scripts/ingesta/`) that downloads and combines real sources, always prioritizing the most granular official source available for each city.
+All data comes from real sources and is prepared by an offline pipeline (`scripts/ingesta/`), never inside the app.
 
-### Sources by city
+**Listings** (`inst/app/data/alquileres.parquet`): each zone's price/m² comes from the most granular official source available for each city. Individual listings are an illustration generated within each zone, but their price always starts from the real €/m².
 
-| City | Real source | Detail level | Reliability |
-|---|---|---|---|
-| **Barcelona** | Generalitat de Catalunya (INCASÒL) — deposited rental bonds | By neighborhood (73 barrios) | Official |
-| **Bilbao** | Basque Government (Etxebide) — quarterly EMAL report | By neighborhood (€/m² already computed by the source) | Official |
-| **Valencia** | Generalitat Valenciana — registry of deposited rental bonds | By postal code (real neighborhood resolved via reverse geocoding) | Official |
-| **Madrid, Sevilla** | No public source with amount + geography (verified) | Municipality + a handful of well-known neighborhoods | Manual anchor, documented in `data/raw/anclas_manuales.csv` |
-
-Madrid and Sevilla have no public registry (national or regional) of rental bonds with amount and geographic breakdown — this was explicitly checked before falling back to an alternative. For those cases (and for any zone without an official source worth highlighting), a **manual anchor** is used: a price/m² documented by hand from a published index (idealista/fotocasa), with date, URL, and a reliability note in `data/raw/anclas_manuales.csv`. These rows are always flagged as estimated (see column schema below) so they never appear as precise as an official figure.
-
-### How the dataset is regenerated
-
-```bash
-Rscript scripts/ingesta/run_pipeline.R
-```
-
-This downloads each source (cached in `data/raw/`, so requests aren't repeated if already recent), geocodes it with [Nominatim/OpenStreetMap](https://nominatim.openstreetmap.org/), combines everything into a single price/m² table by zone, and generates the individual listings the app sees, saving the result to `data/processed/` and `inst/app/data/`. The pipeline is organized in numbered steps inside `scripts/ingesta/` (config → utilities → one source per city → manual anchors → geocoding → harmonization → generation), designed so a new city can be added by touching only `00_config.R` and, if needed, `data/raw/anclas_manuales.csv`.
-
-If a source changes format or URL, the corresponding script stops with an explicit error showing which columns it actually found, instead of silently saving misread data.
-
-### Final dataset schema
-
-| Column | Type | Description |
+| City | Source | Detail |
 |---|---|---|
-| `id` | text | Unique listing identifier |
-| `titulo` | text | Generated descriptive title (type + zone + city) |
-| `ciudad` | text | Municipality |
-| `barrio` | text | Resolved neighborhood/district/postal code (or the municipality name if there's no breakdown) |
-| `tipo` | text | Piso, Apartamento, Ático, Estudio, or Casa / Chalet |
-| `precio` | numeric | Estimated monthly rent (€), derived from the zone's real €/m² |
-| `superficie` | numeric | Surface area (m²) |
-| `habitaciones` / `banos` | numeric | Number of bedrooms / bathrooms |
-| `lat` / `lon` / `lng` | numeric | Real coordinates (zone geocoding, not random) |
-| `fuente_dato` | text | Where that zone's €/m² comes from (official source name, or the index used as an anchor) |
-| `es_estimado` | logical | `TRUE` if the zone has no official source (manual anchor) — flagged as such in the app |
-| `nivel_geo` | text | Real granularity of the data: `barrio`, `municipio`, `zona_sin_fuente_oficial`, etc. |
+| **Barcelona** | Generalitat de Catalunya (INCASÒL), rental deposits | By neighborhood |
+| **Bilbao** | Basque Government (Etxebide), quarterly EMAL report | By neighborhood |
+| **Valencia** | Generalitat Valenciana, rental deposit registry | By postal code |
+| **Madrid, Sevilla** | No public source with amount and geography (verified) | Documented manual anchor, flagged as estimated |
 
-Individual "listings" are an illustration generated within each geolocated zone (surface, type, and a random noise margin), but each one's price **always starts from its zone's real €/m²** — never from a number invented from scratch.
+**Observatory** (`inst/app/data/observatorio_municipios.parquet`): SERPAVI (Ministry of Housing and Urban Agenda), INE (Household Income Distribution Atlas and Municipal Register) and the Cadastre, joined by INE municipality code and all referring to 2022.
 
-### Rental Observatory (SERPAVI + INE + Cadastre)
-
-The Observatory uses a second file, `inst/app/data/observatorio_municipios.parquet` (~4.8 MB, one row per municipality with its geometry as WKB), generated by `scripts/ingesta/09_observatorio.R`:
-
-| Source | What's downloaded | How |
-|---|---|---|
-| **SERPAVI** (Ministry of Housing and Urban Agenda) | Municipal layer with median rents (€/m², €/month, surface area, number of homes) and each municipality's geometry (IGN) | The SERPAVI website is a reCAPTCHA-protected calculator (which is why it isn't used for the listings), but the Ministry's CDN publishes the full layer as a shapefile (`ALQ_Municipios_2022_Web.zip`, ~43 MB) |
-| **INE — ADRH** | Average net income per household and per person | National table 30824 (~350 MB uncompressed, with every census tract): downloaded compressed and stream-filtered to the municipality rows for the reference year, caching only that extract |
-| **INE — Padrón** | Population by municipality | Table 29005 (official figures for every municipality and year) |
-| **Cadastre** (Directorate General for Cadastre) | Number of properties and cadastral value for residential use | Per-province municipal JAXI tables (`URAO`/`URBO`); there's no direct `.px` download, so the pipeline replays the "Consultar todo" form submission and parses the HTML table |
-
-To regenerate it without re-downloading or re-geocoding the listings' sources:
-
-```bash
-Rscript scripts/ingesta/run_pipeline.R --solo-observatorio
-```
-
-The common reference year lives in `ANIO_OBSERVATORIO` (`scripts/ingesta/00_config.R`). Downloads are cached in `data/raw/observatorio/` (not versioned, ~100 MB). If a source changes format, the corresponding step stops with an error describing what it found; an Observatory failure during the full pipeline doesn't invalidate the listings dataset already saved.
+How each source is downloaded and joined, the data schema and how to regenerate it: [technical guide, section 4](docs/GUIA_TECNICA.md#pipeline) (in Spanish).
 
 [⬆ Back to top](#top)
 
 ---
 
-<a id="requirements-installation"></a>
-## Requirements & Installation
+<a id="getting-started"></a>
+## Getting Started
 
-### Prerequisites
-
-- **R** ≥ 4.1 (4.3 or higher recommended)
-- **RStudio** (recommended, though not required, developed in Visual Studio Code)
-- Operating system: Windows, macOS, or Linux
-- Internet connection for the initial dependency installation via `{renv}`
-
-### Main Dependencies (`Imports` in `DESCRIPTION`)
-
-| Package | Use in the project |
-|---|---|
-| [`golem`](https://cran.r-project.org/package=golem) | Framework for structuring the app as an R package |
-| [`shiny`](https://cran.r-project.org/package=shiny) | Reactive engine and web framework for the application |
-| [`shinydashboard`](https://cran.r-project.org/package=shinydashboard) | Dashboard layout (sidebar, boxes, valueBoxes) |
-| [`arrow`](https://cran.r-project.org/package=arrow) | Efficient reading/writing of data in Parquet format |
-| [`leaflet`](https://cran.r-project.org/package=leaflet) / [`leaflet.extras`](https://cran.r-project.org/package=leaflet.extras) | Interactive map and heatmap layer |
-| [`DT`](https://cran.r-project.org/package=DT) | Interactive data tables |
-| [`plotly`](https://cran.r-project.org/package=plotly) | Interactive visual analytics charts |
-| [`sf`](https://cran.r-project.org/package=sf) | The Observatory's municipal geometry (reading the WKB stored in Parquet) |
-| [`htmlwidgets`](https://cran.r-project.org/package=htmlwidgets) | Browser signal once the Observatory map has been painted (`onRender`), so the chart and ranking are sent afterwards |
-| [`jsonlite`](https://cran.r-project.org/package=jsonlite) | Reading clicks on the Observatory chart |
-
-On top of this, `{testthat}` is used as a development dependency for the test suite, and `{renv}` for version control of all dependencies. You'll also need `{roxygen2}` installed to generate the package's `NAMESPACE` file (see step 4 of the installation) — without it, the application **won't start correctly**, since `NAMESPACE` is what tells R which functions from `shiny`, `leaflet`, `DT`, etc. should be made available to the app's code.
-
-**Only if you're going to regenerate the data** (`Rscript scripts/ingesta/run_pipeline.R`, see [Data Source](#data-source)) you'll also need:
-
-| Dependency | Use |
-|---|---|
-| `{httr}` | Downloading the sources (Suggests in `DESCRIPTION`) |
-| `{readxl}` | Reading Barcelona's Excel file (Suggests) |
-| `{jsonlite}` | Geocoding via Nominatim (already in Imports, the app uses it too) |
-| `{sf}` | Reading and simplifying the SERPAVI shapefile (already in Imports) |
-| `pdftotext` (`poppler-utils` system package) | Extracting text from Bilbao's quarterly report. On Linux: `sudo apt install poppler-utils` |
-
-The app itself **needs none of this** to start: it ships with the dataset already generated at `inst/app/data/alquileres.parquet`.
-
-### Step-by-Step Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/pdawgabriel-hub/geo-alquiler.git
-   cd geo-alquiler
-   ```
-
-2. **Open the project in RStudio**
-
-   Open the `geo-alquiler.Rproj` file. This will automatically set the working directory and activate `{renv}` via the project's `.Rprofile` (`source("renv/activate.R")`).
-
-3. **Restore the dependency environment with `{renv}`**
-
-   When you open the project, `{renv}` will detect `renv.lock` and offer to restore the environment. If it doesn't happen automatically, run it manually from the R console:
-
-   ```r
-   install.packages("renv")   # if not already installed
-   renv::restore()
-   ```
-
-   This will install the exact same versions of every package (including `golem`, `shiny`, `leaflet`, `plotly`, etc.) that were used during the project's development.
-
-4. **Generate the package's `NAMESPACE` with `{roxygen2}`**
-
-   This step is **mandatory** the first time you clone the project (the `NAMESPACE` file is not committed pre-generated in the repository — it's built from the `#' @import`/`#' @importFrom` comments in the `R/` folder):
-
-   ```r
-   install.packages("roxygen2")   # if not already installed
-   roxygen2::roxygenise()
-   ```
-
-   If you skip this step, `pkgload::load_all()` won't know which functions from `shiny`, `shinydashboard`, `leaflet`, `leaflet.extras`, `DT`, and `plotly` it should make available to the module code, and the app will fail with *"could not find function..."*-type errors.
-
-5. **Verify that the package loads correctly**
-
-   ```r
-   pkgload::load_all()
-   ```
-
-   If no error appears (yellow `Warning` messages are normal), the package is ready to run.
-
-[⬆ Back to top](#top)
-
----
-
-<a id="usage-execution"></a>
-## Usage & Execution
-
-Since it's a `{golem}` package, the application **doesn't launch like a conventional Shiny script**, but through the exported `run_app()` function.
-
-### Option 1 — From the R console (development mode)
-
-```r
-# Load the package into memory without installing it
-pkgload::load_all()
-
-# Launch the application
-run_app()
-```
-
-### Option 2 — Running `app.R` directly
-
-The `app.R` file at the project's root already wraps both steps above and enables `{golem}`'s production options. You can launch it:
-
-- From RStudio, with the **Run App** button when opening `app.R`.
-- From the terminal:
-
-  ```bash
-  Rscript app.R
-  ```
-
-### Option 3 — As an installed package
-
-```r
-# Install the package locally
-devtools::install()
-
-# Load and run it like any other library
-library(GeoAlquiler)
-run_app()
-```
-
-By default, the application will open in the browser (or RStudio's viewer) at `http://127.0.0.1:<port>`, showing the **Main Dashboard** with global KPIs and the heatmap as the entry point.
-
-[⬆ Back to top](#top)
-
----
-
-<a id="terminal-usage"></a>
-## Usage from the Terminal (without RStudio)
-
-Everything above can be done entirely from a Bash terminal, without ever opening RStudio — useful for servers, containers, CI/CD, or simply if you prefer the command line. The key is to use `Rscript` (R's non-interactive interpreter) instead of pasting code into the RStudio console.
-
-### 1. Clone the repository
+You need **R ≥ 4.1**. From the project root:
 
 ```bash
 git clone https://github.com/pdawgabriel-hub/geo-alquiler.git
 cd geo-alquiler
+Rscript -e 'renv::restore()'                         # installs the exact versions in renv.lock
+Rscript app.R                                        # launches the app
+Rscript -e 'testthat::test_dir("tests/testthat")'    # runs the tests
 ```
 
-### 2. Install/restore dependencies with `{renv}`
+From RStudio: open `geo-alquiler.Rproj`, accept restoring the environment and click **Run App** on `app.R`. The app doesn't download anything at startup: the pre-built data ships in `inst/app/data/`.
 
-```bash
-Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
-Rscript -e 'renv::restore()'
-```
-
-`renv::restore()` reads the `.Rprofile` and `renv.lock` just as if you had opened the `.Rproj` in RStudio, so it installs the exact same package versions.
-
-### 3. Generate the package's `NAMESPACE` with `{roxygen2}`
-
-Mandatory step, just like in RStudio: the `NAMESPACE` is not pre-generated in the repository, and without it `pkgload::load_all()` won't be able to make the `shiny`, `leaflet`, `DT`, `plotly`, etc. functions available to the code.
-
-```bash
-Rscript -e 'install.packages("roxygen2", repos = "https://cloud.r-project.org")'
-Rscript -e 'roxygen2::roxygenise()'
-```
-
-### 4. Verify that the package loads correctly
-
-```bash
-Rscript -e 'pkgload::load_all()'
-```
-
-### 5. Run the application
-
-Any of these three options is equivalent to clicking "Run App" in RStudio:
-
-```bash
-# Option A: using the launcher at the project's root
-Rscript app.R
-
-# Option B: loading the package in development mode and calling run_app()
-Rscript -e 'pkgload::load_all(); run_app()'
-
-# Option C: if you've already installed it as a package (devtools::install())
-Rscript -e 'library(GeoAlquiler); run_app()'
-```
-
-> By default, `run_app()` will try to open a browser automatically, which doesn't exist on a server with no graphical environment. If you're running this remotely (a VM, a container, etc.), add `options(shiny.launch.browser = FALSE)` before calling `run_app()`, and optionally fix a port and host:
->
-> ```bash
-> Rscript -e 'pkgload::load_all(); options(shiny.launch.browser = FALSE); shiny::runApp(shiny::shinyApp(ui = app_ui, server = app_server), host = "0.0.0.0", port = 3838)'
-> ```
->
-> This way the app listens on `http://<server-IP>:3838` and you can access it from any browser without depending on the graphical environment of the machine it's running on.
-
-### 6. Run the tests
-
-```bash
-Rscript -e 'testthat::test_dir("tests/testthat")'
-```
-
-or, if you have `{devtools}` installed (it's a heavy dependency, not required for everyday use):
-
-```bash
-Rscript -e 'devtools::test()'
-```
-
-### 7. Full package check (`R CMD check`)
-
-Without needing `{devtools}`, using R's own command-line tools directly (this is also the equivalent used in a CI pipeline):
-
-```bash
-R CMD build .
-R CMD check --no-manual GeoAlquiler_*.tar.gz
-```
-
-### Summary — RStudio ↔ Terminal Equivalents
-
-| Action | In RStudio | In Bash |
-|---|---|---|
-| Restore dependencies | Offered when opening the `.Rproj` | `Rscript -e 'renv::restore()'` |
-| Generate `NAMESPACE` | `Ctrl/Cmd + Shift + D` (or when building) | `Rscript -e 'roxygen2::roxygenise()'` |
-| Load the package | `Ctrl/Cmd + Shift + L` | `Rscript -e 'pkgload::load_all()'` |
-| Launch the app | "Run App" button | `Rscript app.R` |
-| Run tests | `Ctrl/Cmd + Shift + T` | `Rscript -e 'testthat::test_dir("tests/testthat")'` |
-| Full package check | `Ctrl/Cmd + Shift + E` | `R CMD build . && R CMD check --no-manual *.tar.gz` |
+The app is deployed at **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**.
 
 [⬆ Back to top](#top)
 
 ---
 
-<a id="testing-quality"></a>
-## Testing & Quality
+<a id="technical-documentation"></a>
+## Technical Documentation
 
-GeoAlquiler includes a suite of **unit tests** with **[`{testthat}`](https://testthat.r-lib.org/)**, following the standard structure of an R package (`tests/testthat/`). The current tests cover, among other things, the logic behind metric calculations (e.g., price per m²) and the safe behavior of KPIs when given empty datasets, the table module, and the Observatory (`test_observatorio.R`: derived indicators and how they handle missing data, Spanish number formatting, quantile breaks, geometry reconstruction, normalizing and matching municipality names across INE/Cadastre/IGN, approximate matching of renamed or translated names, the reason behind each missing value, parsing the Cadastre tables, checking that the hand-built geometry JSON is identical to Leaflet's, the per-area geometry cache, and the module itself with `testServer`).
+The **[technical guide](docs/GUIA_TECNICA.md)** (in Spanish) explains the code in depth:
 
-### Run all tests
-
-From the R console, at the project's root:
-
-```r
-testthat::test_dir("tests/testthat")
-```
-
-or, if you have `{devtools}` installed:
-
-```r
-devtools::test()
-```
-
-### Run a specific test file
-
-```r
-testthat::test_file("tests/testthat/test_calculos.R")
-```
-
-### Full package check (build check)
-
-For a more thorough validation — similar to what you'd run before a release or before pushing the package to a repository — the following is recommended:
-
-```r
-devtools::check()
-```
-
-This command verifies, in addition to the tests, the consistency of the `DESCRIPTION`, the `roxygen2` documentation, and the package's overall structure.
-
-> **Best practices followed in this project:** each new calculation feature (price prediction, profitability, opportunity detection) should ideally come with a corresponding test in `tests/testthat/`, following the `test_that("description of the behavior", { expect_*(...) })` pattern already present in `test_calculos.R`.
-
-[⬆ Back to top](#top)
-
----
-
-<a id="deployment"></a>
-## Deployment
-
-Being built as a `{golem}` package with a launcher (`app.R`) decoupled from the development environment, GeoAlquiler is ready to be deployed on several common Shiny ecosystem environments. It's currently deployed for free on shinyapps.io:
-
-**[https://pdawgabriel-hub.shinyapps.io/geoalquiler/](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**
-
-### Compatibility notes (lessons from the first deployment)
-
-- **`terra`**: the latest CRAN version can fail to compile on shinyapps.io due to a newer GDAL API than the one on their server image (typical error: `GDALMDArray::AsClassicDataset` with a different signature). If this happens, pin a version older than the one that introduced multidimensional GDAL support (`renv::install("terra@1.8-42")` followed by `renv::record("terra@1.8-42")`) — but above the minimum version `{raster}` requires (`>= 1.8.5`).
-- **`shiny.autoload.r`**: on shinyapps.io/Posit Connect, the mere presence of an `R/` folder next to `app.R` makes Shiny auto-load it as "helper files" **before** `app.R` even runs (setting this option there is too late). That's why `.Rprofile` sets `options(shiny.autoload.r = FALSE)` — if the error `Error in box: plot.new has not been called yet` reappears, this option isn't being applied in time.
-- Remember to run `renv::snapshot()` (or `renv::record()` for a specific package) before deploying, so `renv.lock` reflects exactly what the server needs.
-- Refresh the data periodically by running `Rscript scripts/ingesta/run_pipeline.R` (see [Data Source](#data-source)) before each deployment, since the official sources update on their own schedule (quarterly in Bilbao's case).
-- `scripts/deploy.R` lists the uploaded files by hand: it includes `inst/app/data/observatorio_municipios.parquet`. If you add another data file, add it there too or it won't reach the server (the app still starts, and the Observatory shows a notice if its file is missing).
+- Project structure and `{golem}` package conventions.
+- Data flow inside the app: which data each module receives and why.
+- The data pipeline step by step, with the dataset schema and how the Observatory's sources are joined.
+- Performance optimizations, especially how the Observatory loads ~8,200 polygons.
+- Detailed installation (RStudio and terminal), known issues, tests and deployment.
+- Where to make the most common changes.
 
 [⬆ Back to top](#top)
 
