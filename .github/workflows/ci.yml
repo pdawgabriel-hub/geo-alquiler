@@ -6,13 +6,27 @@
 #   tiene los secretos SHINYAPPS_TOKEN y SHINYAPPS_SECRET (Settings > Secrets
 #   and variables > Actions). Sin ellos el paso se salta y no da error, así
 #   que se puede seguir desplegando a mano con Rscript scripts/deploy.R.
+#
+# Un push o pull request que solo cambia la guía técnica (docs/, mkdocs.yml...)
+# no lo lanza: no puede romper la app y así no la vuelve a desplegar. La guía
+# la construye y publica .github/workflows/docs.yml.
 
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 env:

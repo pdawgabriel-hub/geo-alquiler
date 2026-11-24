@@ -16,3 +16,9 @@
 ^reporte_plantilla\.Rmd$
 ^\.claude$
 ^\.github$
+
+# Guía técnica (MkDocs): configuración, dependencias de Python y web generada
+^mkdocs\.yml$
+^requirements-docs\.txt$
+^site$
+^\.venv$

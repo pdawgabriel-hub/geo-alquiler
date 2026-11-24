@@ -1,0 +1,76 @@
+# Guía técnica de GeoAlquiler: .venv/bin/mkdocs serve (en local) · se publica en
+# GitHub Pages con .github/workflows/docs.yml. Las páginas están en docs/; las
+# imágenes, en docs/img/ (las mismas que usan los README).
+site_name: GeoAlquiler · Guía técnica
+site_description: Cómo está construido GeoAlquiler, la app de R y Shiny de inteligencia inmobiliaria y análisis espacial del alquiler
+site_author: Gabriel Iborra Vicente
+site_url: https://pdawgabriel-hub.github.io/geo-alquiler/
+repo_url: https://github.com/pdawgabriel-hub/geo-alquiler
+repo_name: pdawgabriel-hub/geo-alquiler
+edit_uri: edit/main/docs/
+copyright: Gabriel Iborra Vicente · licencia de portfolio con uso comercial restringido
+
+theme:
+  name: material
+  language: es
+  icon:
+    logo: material/map-marker-radius
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a modo oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a modo claro
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+
+nav:
+  - Inicio: index.md
+  - Arquitectura: arquitectura.md
+  - Estructura del proyecto: estructura.md
+  - Recorrido por el código: codigo.md
+  - Pipeline de datos: datos.md
+  - Rendimiento: rendimiento.md
+  - Desarrollo local: desarrollo-local.md
+  - Calidad: calidad.md
+  - Despliegue: despliegue.md
+  - Dónde tocar para…: donde-tocar.md
+
+# Con --strict, un enlace a una página o a un anclaje que no existe hace fallar
+# la construcción (por defecto MkDocs solo informa de los anclajes rotos)
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences

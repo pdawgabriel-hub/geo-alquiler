@@ -66,20 +66,20 @@ The app is organized in three layers that don't mix, so every change has an obvi
 | Full dataset | Comparator, Prediction, Neighborhoods, Favorites | They need the whole market: training the model, comparing cities, not losing favorites when filtering |
 | Its own dataset | Observatory | Official data aggregated by municipality, independent of the filters |
 
-Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [how it loads fast](docs/GUIA_TECNICA.md#rendimiento) in the technical guide, in Spanish).
+Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [how it loads fast](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) in the technical guide, in Spanish).
 
 The project is designed as a **technical portfolio piece**, demonstrating mastery of Shiny application architecture at the R-package level (the `{golem}` framework), modularization, testing best practices, and a product-oriented approach to a real use case (PropTech / Real Estate Analytics). Per-zone prices come from real sources (Generalitat de Catalunya, Generalitat Valenciana, Basque Government) or, where no official source exists, from published indices documented by hand (see `scripts/ingesta/`).
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
 <a id="architecture"></a>
 ## Architecture
 
-![GeoAlquiler architecture diagram: offline ingestion produces two Parquet files; the Shiny app loads them in app_server.R, which hands visible, filtered or full data to each module, while the Observatory loads its own file once per process; the browser receives ready-made widgets and sends clicks, filters and map view back as events.](man/figures/arquitectura.en.svg)
+![GeoAlquiler architecture diagram: offline ingestion produces two Parquet files; the Shiny app loads them in app_server.R, which hands visible, filtered or full data to each module, while the Observatory loads its own file once per process; the browser receives ready-made widgets and sends clicks, filters and map view back as events.](docs/img/arquitectura.en.svg)
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -139,9 +139,9 @@ Unlike the rest of the app (which works with illustrative listings for 5 cities)
 | Average cadastral value per residential property | Cadastre — Urban Real Estate Cadastre statistics | Residential cadastral value / number of residential properties |
 | Population and population growth | INE — Municipal Register (Padrón) | 2022 population and change from 2022 to the latest published year |
 
-The Basque Country and Navarre have no rent or Cadastre data (regional tax regime), and municipalities with very few declared contracts have no median rent. When a value is missing, the municipality's profile card explains why. Details on the sources, how they're joined and their limitations are in the [technical guide](docs/GUIA_TECNICA.md#pipeline-observatorio) (in Spanish).
+The Basque Country and Navarre have no rent or Cadastre data (regional tax regime), and municipalities with very few declared contracts have no median rent. When a value is missing, the municipality's profile card explains why. Details on the sources, how they're joined and their limitations are in the [technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/datos/#pipeline-observatorio) (in Spanish).
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -154,37 +154,37 @@ Below are the application's main screens, organized by the same functional block
 
 | Main Dashboard |
 |---|
-| ![Main Dashboard](man/figures/panel-principal.png) |
+| ![Main Dashboard](docs/img/capturas/panel-principal.png) |
 
 | Data Explorer | Neighborhood Analysis |
 |---|---|
-| ![Data Explorer](man/figures/explorador-datos.png) | ![Neighborhood Analysis](man/figures/analisis-barrios.png) |
+| ![Data Explorer](docs/img/capturas/explorador-datos.png) | ![Neighborhood Analysis](docs/img/capturas/analisis-barrios.png) |
 
 ### Analytics & Machine Learning
 
 | Visual Analytics | ML Prediction |
 |---|---|
-| ![Visual Analytics](man/figures/analitica-visual.png) | ![ML Prediction](man/figures/prediccion-ml.png) |
+| ![Visual Analytics](docs/img/capturas/analitica-visual.png) | ![ML Prediction](docs/img/capturas/prediccion-ml.png) |
 
 | KNN Recommender | Advanced Statistics |
 |---|---|
-| ![KNN Recommender](man/figures/recomendador-knn.png) | ![Advanced Statistics](man/figures/estadistica-avanzada.png) |
+| ![KNN Recommender](docs/img/capturas/recomendador-knn.png) | ![Advanced Statistics](docs/img/capturas/estadistica-avanzada.png) |
 
 ### Investment Tools
 
 | A/B Comparator | Opportunity Detector |
 |---|---|
-| ![A/B Comparator](man/figures/comparador-ab.png) | ![Opportunity Detector](man/figures/detector-oportunidades.png) |
+| ![A/B Comparator](docs/img/capturas/comparador-ab.png) | ![Opportunity Detector](docs/img/capturas/detector-oportunidades.png) |
 
 | Profitability Calculator | Executive Report |
 |---|---|
-| ![Profitability Calculator](man/figures/calculadora-rentabilidad.png) | ![Executive Report](man/figures/informe-ejecutivo.png) |
+| ![Profitability Calculator](docs/img/capturas/calculadora-rentabilidad.png) | ![Executive Report](docs/img/capturas/informe-ejecutivo.png) |
 
 ### Spain Rental Observatory
 
 | Observatory (rent €/m² by municipality, Madrid profile card) |
 |---|
-| ![Spain Rental Observatory](man/figures/observatorio-alquiler.png) |
+| ![Spain Rental Observatory](docs/img/capturas/observatorio-alquiler.png) |
 
 ---
 
@@ -204,9 +204,9 @@ All data comes from real sources and is prepared by an offline pipeline (`script
 
 **Observatory** (`inst/app/data/observatorio_municipios.parquet`): SERPAVI (Ministry of Housing and Urban Agenda), INE (Household Income Distribution Atlas and Municipal Register) and the Cadastre, joined by INE municipality code and all referring to 2022.
 
-How each source is downloaded and joined, the data schema and how to regenerate it: [technical guide, section 4](docs/GUIA_TECNICA.md#pipeline) (in Spanish).
+How each source is downloaded and joined, the data schema and how to regenerate it: [technical guide, data pipeline](https://pdawgabriel-hub.github.io/geo-alquiler/datos/) (in Spanish).
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -227,7 +227,7 @@ From RStudio: open `geo-alquiler.Rproj`, accept restoring the environment and cl
 
 The app is deployed at **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**.
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -240,16 +240,16 @@ The business calculations (KPIs, mortgage and investment projection, opportunity
 - **Modules tested with `testServer()`**, without a browser, to check that each screen passes its data to the calculations correctly.
 - **Continuous integration with GitHub Actions**: on every push, GitHub installs the exact versions in `renv.lock` from scratch and runs all the tests. The **Tests** badge at the top shows the result for the latest commit.
 
-How the tests are organized, how to write a new one and how the workflow works: [technical guide, sections 8 and 9](docs/GUIA_TECNICA.md#tests) (in Spanish).
+How the tests are organized, how to write a new one and how the workflow works: [technical guide, quality](https://pdawgabriel-hub.github.io/geo-alquiler/calidad/) (in Spanish).
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
 <a id="technical-documentation"></a>
 ## Technical Documentation
 
-The **[technical guide](docs/GUIA_TECNICA.md)** (in Spanish) explains the code in depth:
+The **[technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/)** (in Spanish), published on GitHub Pages, explains the code in depth:
 
 - Project structure and `{golem}` package conventions.
 - Data flow inside the app: which data each module receives and why.
@@ -260,7 +260,7 @@ The **[technical guide](docs/GUIA_TECNICA.md)** (in Spanish) explains the code i
 - Tests, continuous integration (including how to reproduce it locally) and deployment.
 - Where to make the most common changes.
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -276,7 +276,7 @@ This project is published as a **personal portfolio piece** and carries a restri
 
 The full legal text can be found in the [`LICENSE.en.md`](./LICENSE.en.md) file (Spanish version: [`LICENSE.md`](./LICENSE.md)).
 
-[⬆ Back to top](#top)
+[Back to top](#top)
 
 ---
 
@@ -285,4 +285,4 @@ The full legal text can be found in the [`LICENSE.en.md`](./LICENSE.en.md) file 
 
 Developed by **Gabriel Iborra Vicente** as a portfolio project, with the goal of demonstrating the development of professional-grade Shiny applications structured as an R package (`{golem}`), combining geospatial analytics, Machine Learning models, and real estate investment decision-making tools.
 
-[⬆ Back to top](#top)
+[Back to top](#top)

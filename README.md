@@ -66,20 +66,20 @@ La app se organiza en tres capas que no se mezclan, y cada cambio tiene un sitio
 | Dataset completo | Comparador, Predicción, Barrios, Favoritos | Necesitan todo el mercado: entrenar el modelo, comparar ciudades, no perder favoritos al filtrar |
 | Su propio dataset | Observatorio | Datos oficiales agregados por municipio, independientes de los filtros |
 
-El trabajo pesado se hace en el servidor y al navegador solo llega lo que se va a pintar (ver [cómo carga rápido](docs/GUIA_TECNICA.md#rendimiento) en la guía técnica).
+El trabajo pesado se hace en el servidor y al navegador solo llega lo que se va a pintar (ver [cómo carga rápido](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) en la guía técnica).
 
 El proyecto está pensado como pieza de **portfolio técnico**, demostrando dominio de arquitectura de aplicaciones Shiny a nivel de paquete de R (framework `{golem}`), modularización, buenas prácticas de testing y un enfoque de producto orientado a un caso de uso real (PropTech / Real Estate Analytics). Los precios por zona proceden de fuentes reales (Generalitat de Catalunya, Generalitat Valenciana, Gobierno Vasco) o, donde no existe fuente oficial, de índices publicados documentados a mano (ver `scripts/ingesta/`).
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
 <a id="arquitectura"></a>
 ## Arquitectura
 
-![Esquema de la arquitectura de GeoAlquiler: la ingesta offline genera dos ficheros Parquet; la app Shiny los carga en app_server.R, que reparte datos visibles, filtrados o completos a cada módulo, y el Observatorio carga su propio fichero una vez por proceso; el navegador recibe widgets ya preparados y devuelve clics, filtros y encuadre como eventos.](man/figures/arquitectura.svg)
+![Esquema de la arquitectura de GeoAlquiler: la ingesta offline genera dos ficheros Parquet; la app Shiny los carga en app_server.R, que reparte datos visibles, filtrados o completos a cada módulo, y el Observatorio carga su propio fichero una vez por proceso; el navegador recibe widgets ya preparados y devuelve clics, filtros y encuadre como eventos.](docs/img/arquitectura.svg)
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -139,9 +139,9 @@ A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciu
 | Valor catastral medio por inmueble residencial | Catastro — estadística del Catastro Inmobiliario Urbano | Valor catastral residencial / nº de inmuebles residenciales |
 | Población y crecimiento de población | INE — Padrón municipal | Población 2022 y variación 2022 → último año publicado |
 
-País Vasco y Navarra no tienen datos de alquiler ni de Catastro (régimen foral), y los municipios con muy pocos contratos declarados no tienen mediana de alquiler. Cuando falta un dato, la ficha del municipio explica el motivo. Los detalles de las fuentes, el cruce entre ellas y sus limitaciones están en la [guía técnica](docs/GUIA_TECNICA.md#pipeline-observatorio).
+País Vasco y Navarra no tienen datos de alquiler ni de Catastro (régimen foral), y los municipios con muy pocos contratos declarados no tienen mediana de alquiler. Cuando falta un dato, la ficha del municipio explica el motivo. Los detalles de las fuentes, el cruce entre ellas y sus limitaciones están en la [guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/datos/#pipeline-observatorio).
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -154,37 +154,37 @@ A continuación se muestran las pantallas principales de la aplicación, organiz
 
 | Panel Principal |
 |---|
-| ![Panel Principal](man/figures/panel-principal.png) |
+| ![Panel Principal](docs/img/capturas/panel-principal.png) |
 
 | Explorador de Datos | Análisis por Barrios |
 |---|---|
-| ![Explorador de Datos](man/figures/explorador-datos.png) | ![Análisis por Barrios](man/figures/analisis-barrios.png) |
+| ![Explorador de Datos](docs/img/capturas/explorador-datos.png) | ![Análisis por Barrios](docs/img/capturas/analisis-barrios.png) |
 
 ### Analítica & Machine Learning
 
 | Analítica Visual | Predicción ML |
 |---|---|
-| ![Analítica Visual](man/figures/analitica-visual.png) | ![Predicción ML](man/figures/prediccion-ml.png) |
+| ![Analítica Visual](docs/img/capturas/analitica-visual.png) | ![Predicción ML](docs/img/capturas/prediccion-ml.png) |
 
 | Recomendador KNN | Estadística Avanzada |
 |---|---|
-| ![Recomendador KNN](man/figures/recomendador-knn.png) | ![Estadística Avanzada](man/figures/estadistica-avanzada.png) |
+| ![Recomendador KNN](docs/img/capturas/recomendador-knn.png) | ![Estadística Avanzada](docs/img/capturas/estadistica-avanzada.png) |
 
 ### Herramientas de Inversión
 
 | Comparador A/B | Detector de Oportunidades |
 |---|---|
-| ![Comparador A/B](man/figures/comparador-ab.png) | ![Detector de Oportunidades](man/figures/detector-oportunidades.png) |
+| ![Comparador A/B](docs/img/capturas/comparador-ab.png) | ![Detector de Oportunidades](docs/img/capturas/detector-oportunidades.png) |
 
 | Calculadora de Rentabilidad | Informe Ejecutivo |
 |---|---|
-| ![Calculadora de Rentabilidad](man/figures/calculadora-rentabilidad.png) | ![Informe Ejecutivo](man/figures/informe-ejecutivo.png) |
+| ![Calculadora de Rentabilidad](docs/img/capturas/calculadora-rentabilidad.png) | ![Informe Ejecutivo](docs/img/capturas/informe-ejecutivo.png) |
 
 ### Observatorio del Alquiler en España
 
 | Observatorio (alquiler €/m² por municipio, ficha de Madrid) |
 |---|
-| ![Observatorio del Alquiler en España](man/figures/observatorio-alquiler.png) |
+| ![Observatorio del Alquiler en España](docs/img/capturas/observatorio-alquiler.png) |
 
 ---
 
@@ -204,9 +204,9 @@ Todos los datos proceden de fuentes reales y se preparan con un pipeline offline
 
 **Observatorio** (`inst/app/data/observatorio_municipios.parquet`): SERPAVI (Ministerio de Vivienda y Agenda Urbana), INE (Atlas de Distribución de Renta de los Hogares y Padrón) y Catastro, cruzados por código INE de municipio y referidos todos a 2022.
 
-Cómo se descarga y cruza cada fuente, el esquema de los datos y cómo regenerarlos: [guía técnica, sección 4](docs/GUIA_TECNICA.md#pipeline).
+Cómo se descarga y cruza cada fuente, el esquema de los datos y cómo regenerarlos: [guía técnica, Pipeline de datos](https://pdawgabriel-hub.github.io/geo-alquiler/datos/).
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -227,7 +227,7 @@ Desde RStudio: abre `geo-alquiler.Rproj`, acepta restaurar el entorno y pulsa **
 
 La app está desplegada en **[pdawgabriel-hub.shinyapps.io/geoalquiler](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)**.
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -240,16 +240,16 @@ Los cálculos de negocio (KPIs, hipoteca y proyección de la inversión, detecci
 - **Módulos probados con `testServer()`**, sin navegador, para comprobar que cada pantalla pasa bien sus datos a los cálculos.
 - **Integración continua con GitHub Actions**: en cada push, GitHub instala desde cero las versiones exactas de `renv.lock` y ejecuta todos los tests. La insignia **Tests** de arriba muestra el resultado del último commit.
 
-Cómo están organizados los tests, cómo escribir uno nuevo y cómo funciona el workflow: [guía técnica, secciones 8 y 9](docs/GUIA_TECNICA.md#tests).
+Cómo están organizados los tests, cómo escribir uno nuevo y cómo funciona el workflow: [guía técnica, Calidad](https://pdawgabriel-hub.github.io/geo-alquiler/calidad/).
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
 <a id="documentacion-tecnica"></a>
 ## Documentación Técnica
 
-La **[guía técnica](docs/GUIA_TECNICA.md)** explica el código en detalle:
+La **[guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/)**, publicada en GitHub Pages, explica el código en detalle:
 
 - Estructura del proyecto y convenciones del paquete `{golem}`.
 - Flujo de datos dentro de la app: qué datos recibe cada módulo y por qué.
@@ -260,7 +260,7 @@ La **[guía técnica](docs/GUIA_TECNICA.md)** explica el código en detalle:
 - Tests, integración continua (incluido cómo reproducirla en local) y despliegue.
 - Dónde tocar para hacer los cambios más habituales.
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -276,7 +276,7 @@ Este proyecto se publica como **pieza de portfolio personal** y tiene una licenc
 
 El texto legal completo se encuentra en el archivo [`LICENSE.md`](./LICENSE.md) (versión en inglés: [`LICENSE.en.md`](./LICENSE.en.md)).
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)
 
 ---
 
@@ -285,4 +285,4 @@ El texto legal completo se encuentra en el archivo [`LICENSE.md`](./LICENSE.md) 
 
 Desarrollado por **Gabriel Iborra Vicente** como proyecto de portfolio, con el objetivo de demostrar el desarrollo de aplicaciones Shiny de nivel profesional estructuradas como paquete de R (`{golem}`), combinando analítica geoespacial, modelos de Machine Learning y herramientas de decisión de inversión inmobiliaria.
 
-[⬆ Volver arriba](#top)
+[Volver arriba](#top)

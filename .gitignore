@@ -19,3 +19,6 @@ data/raw/observatorio/
 # Renderizados temporales de HTML/PDF
 *.html
 *.pdf
+# Guía técnica (MkDocs): entorno de Python y web generada por mkdocs build
+.venv/
+site/
