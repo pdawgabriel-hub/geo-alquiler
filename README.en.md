@@ -11,6 +11,9 @@
 ![License](https://img.shields.io/badge/License-Portfolio%20%2F%20Restricted%20Use-red)
 ![Status](https://img.shields.io/badge/Status-In%20development-yellow)
 [![Tests](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml/badge.svg)](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml)
+[![Technical guide](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/docs.yml/badge.svg)](https://pdawgabriel-hub.github.io/geo-alquiler/)
+
+**[Try the app](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)** · **[Technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/)** (in Spanish)
 
 ---
 
@@ -57,14 +60,7 @@ The app is organized in three layers that don't mix, so every change has an obvi
 
 - **Offline ingestion** (`scripts/ingesta/`). Downloading, cleaning and joining the sources is done by hand with `Rscript scripts/ingesta/run_pipeline.R`, never inside the app. The output is two Parquet files that ship with the package, so the app starts fast and doesn't depend on any external website being up. If a source changes format, the pipeline fails with an explicit error instead of the app failing in production.
 - **Business logic without Shiny** (`R/fct_*.R`). The calculations that matter (indicators, municipality name matching, number formatting, map geometry) are pure functions shared by the pipeline and the app, and they're tested with `testthat` without starting a server.
-- **Module-based interface** (`R/mod_*.R`). Each screen is an independent module. `app_server.R` only wires them together and decides which version of the data each one receives, which is the app's central design decision:
-
-| The module receives… | Modules | Why |
-|---|---|---|
-| `datos_visibles`: filters + what's visible on the map | Table, Analytics, Statistics, Opportunities, Calculator, Report, Export | They answer "what am I looking at right now" |
-| Filtered data, not cropped to the map | KNN Recommender | Searching for similar listings only within the map view would leave very few candidates |
-| Full dataset | Comparator, Prediction, Neighborhoods, Favorites | They need the whole market: training the model, comparing cities, not losing favorites when filtering |
-| Its own dataset | Observatory | Official data aggregated by municipality, independent of the filters |
+- **Module-based interface** (`R/mod_*.R`). Each screen is an independent module. `app_server.R` only wires them together and decides which version of the data each one receives, which is the app's central design decision. So each screen answers what makes sense for it: the table and analytics, what is visible on the map; prediction and the comparator, the whole market; the Observatory, its own official data. Which data each module receives and why: [technical guide, data flow](https://pdawgabriel-hub.github.io/geo-alquiler/arquitectura/#flujo-datos) (in Spanish).
 
 Heavy lifting happens on the server, and only what will be drawn reaches the browser (see [how it loads fast](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) in the technical guide, in Spanish).
 
@@ -128,16 +124,14 @@ The application is organized into three functional blocks, directly reflected in
 |---|---|
 | **Spain Observatory** (`mod_observatorio`) | Municipal choropleth map of all of Spain (or a single province) with 8 selectable indicators, KPIs for the selected area, a profile card for each municipality showing its national percentile on every indicator, an income vs. rent €/m² bubble chart (size = population, color = rent burden), and a municipality ranking. A municipality can be selected from the map, the chart, or the ranking, and all three views stay in sync. |
 
-Unlike the rest of the app (which works with illustrative listings for 5 cities), the observatory uses **only official aggregate data**, joined by INE municipality code and **all referring to the same year (2022)**, so ratios between sources compare the same period:
+Unlike the rest of the app (which works with illustrative listings for 5 cities), the observatory uses **only official aggregate data**, joined by INE municipality code and **all referring to the same year (2022)**, so ratios between sources compare the same period. Its indicators:
 
-| Indicator | Source | Calculation |
-|---|---|---|
-| Median rent (€/m² and €/month) | SERPAVI — Ministry of Housing and Urban Agenda | Median of rental contracts declared in personal income tax returns. The apartment-building median is used; where SERPAVI only publishes it for single-family homes (749 municipalities, e.g. Torrent), that one is used and the profile card says so |
-| Rent burden (% of income) | SERPAVI + INE | 12 × median monthly rent / average net household income |
-| Average net household income | INE — Household Income Distribution Atlas (ADRH) | Direct value |
-| Rented homes (% of housing stock) | SERPAVI + Cadastre | Homes with declared rental income / residential-use properties |
-| Average cadastral value per residential property | Cadastre — Urban Real Estate Cadastre statistics | Residential cadastral value / number of residential properties |
-| Population and population growth | INE — Municipal Register (Padrón) | 2022 population and change from 2022 to the latest published year |
+- **Median rent** (€/m² and €/month): SERPAVI, Ministry of Housing and Urban Agenda.
+- **Rent burden** (% of household income spent on rent): SERPAVI + INE.
+- **Average net household income**: INE, Household Income Distribution Atlas.
+- **Rented homes** (% of housing stock): SERPAVI + Cadastre.
+- **Average cadastral value** per residential property: Cadastre.
+- **Population and population growth**: INE, Municipal Register.
 
 The Basque Country and Navarre have no rent or Cadastre data (regional tax regime), and municipalities with very few declared contracts have no median rent. When a value is missing, the municipality's profile card explains why. Details on the sources, how they're joined and their limitations are in the [technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/datos/#pipeline-observatorio) (in Spanish).
 
@@ -249,16 +243,19 @@ How the tests are organized, how to write a new one and how the workflow works: 
 <a id="technical-documentation"></a>
 ## Technical Documentation
 
-The **[technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/)** (in Spanish), published on GitHub Pages, explains the code in depth:
+All technical documentation is in the **[technical guide](https://pdawgabriel-hub.github.io/geo-alquiler/)** (in Spanish), published on GitHub Pages:
 
-- Project structure and `{golem}` package conventions.
-- Data flow inside the app: which data each module receives and why.
-- A walkthrough of the code: what a module looks like, how calculations are kept apart from the interface, and how the server talks to the browser, with real snippets.
-- The data pipeline step by step, with the dataset schema and how the Observatory's sources are joined.
-- Performance optimizations, especially how the Observatory loads ~8,200 polygons.
-- Detailed installation (RStudio and terminal) and known issues.
-- Tests, continuous integration (including how to reproduce it locally) and deployment.
-- Where to make the most common changes.
+| Page | What it covers |
+|---|---|
+| [Architecture](https://pdawgabriel-hub.github.io/geo-alquiler/arquitectura/) | The three layers and which data each module receives |
+| [Project structure](https://pdawgabriel-hub.github.io/geo-alquiler/estructura/) | Folders, files and `{golem}` package conventions |
+| [Code walkthrough](https://pdawgabriel-hub.github.io/geo-alquiler/codigo/) | What a module looks like, how calculations are kept apart from the interface and how the server talks to the browser, with real snippets |
+| [Data pipeline](https://pdawgabriel-hub.github.io/geo-alquiler/datos/) | Sources, data schema, how the Observatory joins them and known limitations |
+| [Performance](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) | How the Observatory loads ~8,200 polygons without blocking the browser |
+| [Local development](https://pdawgabriel-hub.github.io/geo-alquiler/desarrollo-local/) | Installation from RStudio or the terminal and known issues |
+| [Quality](https://pdawgabriel-hub.github.io/geo-alquiler/calidad/) | Tests, continuous integration and how to reproduce it locally |
+| [Deployment](https://pdawgabriel-hub.github.io/geo-alquiler/despliegue/) | Publishing to shinyapps.io |
+| [Where to change…](https://pdawgabriel-hub.github.io/geo-alquiler/donde-tocar/) | Where to make the most common changes |
 
 [Back to top](#top)
 

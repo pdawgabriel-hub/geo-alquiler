@@ -64,6 +64,17 @@ Lo genera `09_observatorio.R`: una fila por municipio (~4,8 MB) con los indicado
 | **INE, Padrón** | Población por municipio | Tabla 29005 (cifras oficiales de todos los municipios y años) |
 | **Catastro** | Nº de inmuebles y valor catastral de uso residencial | Tablas JAXI por provincia (`URAO`/`URBO`). No hay descarga directa del `.px`: se reproduce el envío del formulario "Consultar todo" y se parsea la tabla HTML |
 
+**Indicadores.** Cada uno se calcula a partir de una o varias fuentes:
+
+| Indicador | Fuente | Cálculo |
+|---|---|---|
+| Alquiler mediano (€/m² y €/mes) | SERPAVI | Mediana de los contratos de alquiler declarados en el IRPF (ver abajo qué tipología se usa) |
+| Esfuerzo de alquiler (% renta) | SERPAVI + INE | 12 × alquiler mensual mediano / renta neta media por hogar |
+| Renta neta media por hogar | INE, ADRH | Dato directo |
+| Viviendas en alquiler (% del parque) | SERPAVI + Catastro | Viviendas con alquiler declarado / inmuebles de uso residencial |
+| Valor catastral medio por inmueble residencial | Catastro | Valor catastral residencial / nº de inmuebles residenciales |
+| Población y crecimiento de población | INE, Padrón | Población 2022 y variación 2022 → último año publicado |
+
 **Mediana de alquiler.** Se usa la de vivienda colectiva (pisos). SERPAVI solo la publica si hay suficientes contratos de pisos; en 749 municipios (p. ej. Torrent) solo hay mediana de unifamiliares, y en ese caso se usa esa y la columna `tipo_vivienda_alquiler` lo indica para que la ficha lo advierta.
 
 **Cruce del Catastro con el INE.** El Catastro no publica el código INE en sus tablas municipales, así que se cruza por nombre en tres pasos, siempre dentro de cada provincia:

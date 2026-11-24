@@ -11,6 +11,9 @@
 ![License](https://img.shields.io/badge/Licencia-Portfolio%20%2F%20Uso%20restringido-red)
 ![Status](https://img.shields.io/badge/Estado-En%20desarrollo-yellow)
 [![Tests](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml/badge.svg)](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/ci.yml)
+[![Guía técnica](https://github.com/pdawgabriel-hub/geo-alquiler/actions/workflows/docs.yml/badge.svg)](https://pdawgabriel-hub.github.io/geo-alquiler/)
+
+**[Probar la app](https://pdawgabriel-hub.shinyapps.io/geoalquiler/)** · **[Guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/)**
 
 ---
 
@@ -57,14 +60,7 @@ La app se organiza en tres capas que no se mezclan, y cada cambio tiene un sitio
 
 - **Ingesta offline** (`scripts/ingesta/`). Descargar, limpiar y cruzar las fuentes se hace a mano con `Rscript scripts/ingesta/run_pipeline.R`, nunca dentro de la app. El resultado son dos ficheros Parquet que viajan con el paquete, así que la app arranca rápido y no depende de que ninguna web externa responda. Si una fuente cambia de formato, falla el pipeline con un error explícito, no la app en producción.
 - **Lógica de negocio sin Shiny** (`R/fct_*.R`). Los cálculos que importan (indicadores, cruce de nombres de municipio, formato de cifras, geometría del mapa) son funciones puras que usan tanto el pipeline como la app, y se prueban con `testthat` sin levantar un servidor.
-- **Interfaz por módulos** (`R/mod_*.R`). Cada pantalla es un módulo independiente. `app_server.R` solo los ensambla y decide qué versión de los datos recibe cada uno, que es la decisión de diseño central de la app:
-
-| El módulo recibe… | Módulos | Por qué |
-|---|---|---|
-| `datos_visibles`: filtros + lo que se ve en el mapa | Tabla, Analítica, Estadística, Oportunidades, Calculadora, Informe, Exportar | Responden a "lo que estoy mirando ahora" |
-| Datos filtrados, sin recorte del mapa | Recomendador KNN | Buscar similares solo en el encuadre daría muy pocos candidatos |
-| Dataset completo | Comparador, Predicción, Barrios, Favoritos | Necesitan todo el mercado: entrenar el modelo, comparar ciudades, no perder favoritos al filtrar |
-| Su propio dataset | Observatorio | Datos oficiales agregados por municipio, independientes de los filtros |
+- **Interfaz por módulos** (`R/mod_*.R`). Cada pantalla es un módulo independiente. `app_server.R` solo los ensambla y decide qué versión de los datos recibe cada uno, que es la decisión de diseño central de la app. Así cada pantalla responde a lo que tiene sentido: la tabla y las analíticas, a lo que se ve en el mapa; la predicción y el comparador, a todo el mercado; el Observatorio, a sus propios datos oficiales. Qué recibe cada módulo y por qué: [guía técnica, Flujo de datos](https://pdawgabriel-hub.github.io/geo-alquiler/arquitectura/#flujo-datos).
 
 El trabajo pesado se hace en el servidor y al navegador solo llega lo que se va a pintar (ver [cómo carga rápido](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) en la guía técnica).
 
@@ -128,18 +124,16 @@ La aplicación está organizada en tres bloques funcionales, reflejados directam
 |---|---|
 | **Observatorio España** (`mod_observatorio`) | Mapa coroplético municipal de toda España (o de una provincia) con 8 indicadores seleccionables, KPIs del ámbito, ficha de cada municipio con su percentil nacional en cada indicador, gráfico de burbujas renta vs. alquiler €/m² (tamaño = población, color = esfuerzo) y ranking de municipios. Se puede seleccionar un municipio desde el mapa, el gráfico o el ranking, y las tres vistas se sincronizan. |
 
-A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciudades), el observatorio usa **solo datos agregados oficiales**, cruzados por código INE de municipio y **todos referidos al mismo año (2022)**, para que los ratios entre fuentes comparen el mismo ejercicio:
+A diferencia del resto de la app (que trabaja con anuncios ilustrativos de 5 ciudades), el observatorio usa **solo datos agregados oficiales**, cruzados por código INE de municipio y **todos referidos al mismo año (2022)**, para que los ratios entre fuentes comparen el mismo ejercicio. Sus indicadores:
 
-| Indicador | Fuente | Cálculo |
-|---|---|---|
-| Alquiler mediano (€/m² y €/mes) | SERPAVI — Ministerio de Vivienda y Agenda Urbana | Mediana de los contratos de alquiler declarados en el IRPF. Se usa la de vivienda colectiva (pisos); donde SERPAVI solo la publica para unifamiliares (749 municipios, p. ej. Torrent), se usa esa y la ficha lo indica |
-| Esfuerzo de alquiler (% renta) | SERPAVI + INE | 12 × alquiler mensual mediano / renta neta media por hogar |
-| Renta neta media por hogar | INE — Atlas de Distribución de Renta de los Hogares | Dato directo |
-| Viviendas en alquiler (% del parque) | SERPAVI + Catastro | Viviendas con alquiler declarado / inmuebles de uso residencial |
-| Valor catastral medio por inmueble residencial | Catastro — estadística del Catastro Inmobiliario Urbano | Valor catastral residencial / nº de inmuebles residenciales |
-| Población y crecimiento de población | INE — Padrón municipal | Población 2022 y variación 2022 → último año publicado |
+- **Alquiler mediano** (€/m² y €/mes): SERPAVI, Ministerio de Vivienda y Agenda Urbana.
+- **Esfuerzo de alquiler** (% de la renta del hogar que se va en el alquiler): SERPAVI + INE.
+- **Renta neta media por hogar**: INE, Atlas de Distribución de Renta de los Hogares.
+- **Viviendas en alquiler** (% del parque): SERPAVI + Catastro.
+- **Valor catastral medio** por inmueble residencial: Catastro.
+- **Población y crecimiento de población**: INE, Padrón municipal.
 
-País Vasco y Navarra no tienen datos de alquiler ni de Catastro (régimen foral), y los municipios con muy pocos contratos declarados no tienen mediana de alquiler. Cuando falta un dato, la ficha del municipio explica el motivo. Los detalles de las fuentes, el cruce entre ellas y sus limitaciones están en la [guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/datos/#pipeline-observatorio).
+País Vasco y Navarra no tienen datos de alquiler ni de Catastro (régimen foral), y los municipios con muy pocos contratos declarados no tienen mediana de alquiler. Cuando falta un dato, la ficha del municipio explica el motivo. Cómo se calcula cada indicador, el cruce entre fuentes y sus limitaciones están en la [guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/datos/#pipeline-observatorio).
 
 [Volver arriba](#top)
 
@@ -249,16 +243,19 @@ Cómo están organizados los tests, cómo escribir uno nuevo y cómo funciona el
 <a id="documentacion-tecnica"></a>
 ## Documentación Técnica
 
-La **[guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/)**, publicada en GitHub Pages, explica el código en detalle:
+Toda la documentación técnica está en la **[guía técnica](https://pdawgabriel-hub.github.io/geo-alquiler/)**, publicada en GitHub Pages:
 
-- Estructura del proyecto y convenciones del paquete `{golem}`.
-- Flujo de datos dentro de la app: qué datos recibe cada módulo y por qué.
-- Recorrido por el código: cómo es un módulo, cómo se separa el cálculo de la interfaz y cómo se comunica el servidor con el navegador, con fragmentos reales.
-- Pipeline de datos paso a paso, con el esquema del dataset y el cruce de fuentes del Observatorio.
-- Optimizaciones de rendimiento, en especial cómo el Observatorio carga ~8.200 polígonos.
-- Instalación detallada (RStudio y terminal) y problemas conocidos.
-- Tests, integración continua (incluido cómo reproducirla en local) y despliegue.
-- Dónde tocar para hacer los cambios más habituales.
+| Página | Qué explica |
+|---|---|
+| [Arquitectura](https://pdawgabriel-hub.github.io/geo-alquiler/arquitectura/) | Las tres capas y qué datos recibe cada módulo |
+| [Estructura del proyecto](https://pdawgabriel-hub.github.io/geo-alquiler/estructura/) | Carpetas, ficheros y convenciones del paquete `{golem}` |
+| [Recorrido por el código](https://pdawgabriel-hub.github.io/geo-alquiler/codigo/) | Cómo es un módulo, cómo se separa el cálculo de la interfaz y cómo se habla con el navegador, con fragmentos reales |
+| [Pipeline de datos](https://pdawgabriel-hub.github.io/geo-alquiler/datos/) | Fuentes, esquema de los datos, cruce del Observatorio y limitaciones |
+| [Rendimiento](https://pdawgabriel-hub.github.io/geo-alquiler/rendimiento/) | Cómo el Observatorio carga ~8.200 polígonos sin bloquear el navegador |
+| [Desarrollo local](https://pdawgabriel-hub.github.io/geo-alquiler/desarrollo-local/) | Instalación desde RStudio o la terminal y problemas conocidos |
+| [Calidad](https://pdawgabriel-hub.github.io/geo-alquiler/calidad/) | Tests, integración continua y cómo reproducirla en local |
+| [Despliegue](https://pdawgabriel-hub.github.io/geo-alquiler/despliegue/) | Publicación en shinyapps.io |
+| [Dónde tocar para…](https://pdawgabriel-hub.github.io/geo-alquiler/donde-tocar/) | Dónde hacer los cambios más habituales |
 
 [Volver arriba](#top)
 
